@@ -50,9 +50,9 @@ const SkinSetup = () => {
 
   return (
     <PhoneFrame>
-      <main className="flex-1 px-6 pt-10 pb-6 animate-fade-in flex flex-col">
+      <main className="flex h-full min-h-0 flex-col px-6 pt-10 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] animate-fade-in">
         {/* Progress bars */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex shrink-0 gap-2 mb-6">
           {[1, 2, 3].map((n) => (
             <div
               key={n}
@@ -74,10 +74,10 @@ const SkinSetup = () => {
         <p className="text-sm text-muted-foreground mt-4">Step {step} of 3</p>
 
         {step === 1 && (
-          <div className="flex-1 flex flex-col animate-slide-up">
+          <div className="flex-1 min-h-0 flex flex-col animate-slide-up">
             <h1 className="text-3xl font-extrabold text-navy mt-1">What's your skin type?</h1>
             <p className="text-muted-foreground mt-2">This helps us recommend the right products for you</p>
-            <div className="flex flex-col gap-3 mt-6 overflow-y-auto scrollbar-hide pb-4">
+            <div className="flex-1 min-h-0 flex flex-col gap-3 mt-6 overflow-y-auto scrollbar-hide pb-4">
               {skinTypes.map((s) => (
                 <button
                   key={s.id}
@@ -98,10 +98,10 @@ const SkinSetup = () => {
         )}
 
         {step === 2 && (
-          <div className="flex-1 flex flex-col animate-slide-up">
+          <div className="flex-1 min-h-0 flex flex-col animate-slide-up">
             <h1 className="text-3xl font-extrabold text-navy mt-1">Any skin conditions?</h1>
             <p className="text-muted-foreground mt-2">Select all that apply (optional)</p>
-            <div className="flex flex-col gap-3 mt-6 overflow-y-auto scrollbar-hide pb-4">
+            <div className="flex-1 min-h-0 flex flex-col gap-3 mt-6 overflow-y-auto scrollbar-hide pb-4">
               {conditions.map((c) => (
                 <button
                   key={c.id}
@@ -122,10 +122,10 @@ const SkinSetup = () => {
         )}
 
         {step === 3 && (
-          <div className="flex-1 flex flex-col animate-slide-up">
+          <div className="flex-1 min-h-0 flex flex-col animate-slide-up">
             <h1 className="text-3xl font-extrabold text-navy mt-1">What are your main concerns?</h1>
             <p className="text-muted-foreground mt-2">Select all that apply</p>
-            <div className="grid grid-cols-2 gap-3 mt-6 overflow-y-auto scrollbar-hide pb-4">
+            <div className="grid flex-1 min-h-0 grid-cols-2 auto-rows-max gap-3 mt-6 overflow-y-auto scrollbar-hide pb-4">
               {concerns.map((c) => (
                 <button
                   key={c.id}
@@ -142,7 +142,7 @@ const SkinSetup = () => {
           </div>
         )}
 
-        <Button onClick={next} variant="brand" size="xl" className="mt-4" disabled={step === 1 && !skinType}>
+        <Button onClick={next} variant="brand" size="xl" className="mt-4 shrink-0" disabled={step === 1 && !skinType}>
           {step === 3 ? "Finish & Start Scanning" : "Continue"}
         </Button>
       </main>

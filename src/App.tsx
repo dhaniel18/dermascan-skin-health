@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -17,29 +18,35 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Welcome />} />
-          <Route path="/create-account" element={<CreateAccount />} />
-          <Route path="/sign-in" element={<SignIn />} />
-          <Route path="/skin-setup" element={<SkinSetup />} />
-          <Route element={<AppLayout />}>
-            <Route path="/home" element={<Home />} />
-            <Route path="/layering" element={<Layering />} />
-            <Route path="/scan" element={<Scan />} />
-            <Route path="/saved" element={<Saved />} />
-            <Route path="/profile" element={<Profile />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    document.title = "DermaScan";
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Welcome />} />
+            <Route path="/create-account" element={<CreateAccount />} />
+            <Route path="/sign-in" element={<SignIn />} />
+            <Route path="/skin-setup" element={<SkinSetup />} />
+            <Route element={<AppLayout />}>
+              <Route path="/home" element={<Home />} />
+              <Route path="/layering" element={<Layering />} />
+              <Route path="/scan" element={<Scan />} />
+              <Route path="/saved" element={<Saved />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
