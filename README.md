@@ -1,6 +1,5 @@
 # DermaScan Expo
 
-DermaScan has been migrated from a Vite React prototype to an Expo React Native app.
 
 ## Run
 
