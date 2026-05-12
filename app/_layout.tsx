@@ -1,12 +1,11 @@
 import "../global.css";
 
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+import { AppThemeProvider } from "@/components/AppThemeProvider";
 
 export default function RootLayout() {
   return (
-    <>
-      <StatusBar style="dark" />
+    <AppThemeProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="create-account" />
@@ -15,6 +14,6 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="+not-found" />
       </Stack>
-    </>
+    </AppThemeProvider>
   );
 }

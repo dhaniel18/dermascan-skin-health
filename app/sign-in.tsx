@@ -30,8 +30,8 @@ export default function SignInScreen() {
         <BackButton />
         <View className="flex-1 justify-center gap-8">
           <View>
-            <Text className="text-4xl font-extrabold text-navy">Welcome Back!</Text>
-            <Text className="mt-3 text-base text-muted">Sign in to continue your skin health routine.</Text>
+            <Text className="text-4xl font-extrabold text-navy dark:text-cloud">Welcome Back!</Text>
+            <Text className="mt-3 text-base text-muted dark:text-darkMuted">Sign in to continue your skin health routine.</Text>
           </View>
 
           <View className="gap-4">

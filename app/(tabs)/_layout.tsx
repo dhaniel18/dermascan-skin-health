@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { Heart, Home, Layers, ScanLine, User } from "lucide-react-native";
 import { Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppTheme } from "@/components/AppThemeProvider";
 import { colors } from "@/constants/theme";
 
 const tabs = [
@@ -14,14 +15,15 @@ const tabs = [
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { isDark } = useAppTheme();
   const bottom = Math.max(insets.bottom, 10);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.maroon,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarActiveTintColor: isDark ? colors.peach : colors.maroon,
+        tabBarInactiveTintColor: isDark ? colors.darkMuted : colors.muted,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "700",
@@ -31,8 +33,8 @@ export default function TabLayout() {
           height: 66 + bottom,
           paddingTop: 8,
           paddingBottom: bottom,
-          borderTopColor: colors.border,
-          backgroundColor: colors.card,
+          borderTopColor: isDark ? colors.darkBorder : colors.border,
+          backgroundColor: isDark ? colors.darkSurface : colors.card,
           position: Platform.OS === "android" ? "absolute" : "absolute"
         }
       }}

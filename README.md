@@ -4,11 +4,14 @@
 ## Run
 
 ```bash
+cd dermascan-skin-health
 npm install
 npx expo start
 ```
 
 Open the QR code with Expo Go on your phone.
+
+If you are already inside `dermascan-skin-health`, run `npx expo start` directly.
 
 ## Project shape
 

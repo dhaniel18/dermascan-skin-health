@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 export default {
+  darkMode: "class",
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   presets: [require("nativewind/preset")],
   theme: {
@@ -16,7 +17,12 @@ export default {
         "peach-soft": "#FBEEE9",
         muted: "#777D9A",
         border: "#E5E6F0",
-        card: "#FFFFFF"
+        card: "#FFFFFF",
+        darkBackground: "#20284F",
+        darkSurface: "#2F3867",
+        darkSurfaceSoft: "#414B7F",
+        darkMuted: "#D7DAF0",
+        darkBorder: "#56609A"
       },
       boxShadow: {
         soft: "0 4px 18px rgba(55, 67, 117, 0.08)",

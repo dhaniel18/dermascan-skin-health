@@ -1,6 +1,7 @@
 import { Link } from "expo-router";
 import { ShieldCheck, Sparkles, ScanLine } from "lucide-react-native";
 import { Text, View } from "react-native";
+import { useAppTheme } from "@/components/AppThemeProvider";
 import { Button } from "@/components/Button";
 import { Logo } from "@/components/Logo";
 import { Screen } from "@/components/Screen";
@@ -13,6 +14,8 @@ const features = [
 ];
 
 export default function WelcomeScreen() {
+  const { isDark } = useAppTheme();
+
   return (
     <Screen scroll={false}>
       <View className="flex-1 justify-between py-8">
@@ -22,11 +25,11 @@ export default function WelcomeScreen() {
 
         <View className="flex-row justify-between gap-3">
           {features.map(({ icon: Icon, label }) => (
-            <View key={label} className="flex-1 items-center gap-3 rounded-3xl bg-card p-4">
-              <View className="h-12 w-12 items-center justify-center rounded-2xl bg-periwinkle-soft">
-                <Icon size={24} color={colors.navy} strokeWidth={2.4} />
+            <View key={label} className="flex-1 items-center gap-3 rounded-3xl bg-card p-4 dark:bg-darkSurface">
+              <View className="h-12 w-12 items-center justify-center rounded-2xl bg-periwinkle-soft dark:bg-darkSurfaceSoft">
+                <Icon size={24} color={isDark ? colors.cloud : colors.navy} strokeWidth={2.4} />
               </View>
-              <Text className="text-center text-xs font-bold leading-4 text-navy">{label}</Text>
+              <Text className="text-center text-xs font-bold leading-4 text-navy dark:text-cloud">{label}</Text>
             </View>
           ))}
         </View>

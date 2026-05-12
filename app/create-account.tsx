@@ -36,8 +36,8 @@ export default function CreateAccountScreen() {
         <BackButton />
         <View className="flex-1 justify-center gap-8">
           <View>
-            <Text className="text-4xl font-extrabold text-navy">Create Account</Text>
-            <Text className="mt-3 text-base text-muted">Start with a profile that matches your skin.</Text>
+            <Text className="text-4xl font-extrabold text-navy dark:text-cloud">Create Account</Text>
+            <Text className="mt-3 text-base text-muted dark:text-darkMuted">Start with a profile that matches your skin.</Text>
           </View>
 
           <View className="gap-4">
@@ -45,8 +45,8 @@ export default function CreateAccountScreen() {
             <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
             <TextField label="Password" value={password} onChangeText={setPassword} secureTextEntry />
             <Pressable onPress={() => setAgreed((value) => !value)} className="flex-row items-center gap-3">
-              <View className={`h-5 w-5 rounded-md border ${agreed ? "border-maroon bg-maroon" : "border-border bg-card"}`} />
-              <Text className="flex-1 text-sm text-muted">I agree to the DermaScan terms and privacy policy.</Text>
+              <View className={`h-5 w-5 rounded-md border ${agreed ? "border-maroon bg-maroon" : "border-border bg-card dark:border-darkBorder dark:bg-darkSurface"}`} />
+              <Text className="flex-1 text-sm text-muted dark:text-darkMuted">I agree to the DermaScan terms and privacy policy.</Text>
             </Pressable>
           </View>
         </View>
