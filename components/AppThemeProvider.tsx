@@ -1,69 +1,85 @@
+// ============================================================
+// DermaScan — App Theme Provider
+// Uses react-native's built-in useColorScheme (safe on iOS).
+// nativewind's useColorScheme can crash before SafeAreaProvider
+// is ready on iOS — this avoids that entirely.
+// ============================================================
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
-import { useColorScheme } from "nativewind";
 import {
-  createContext, ReactNode, useContext,
-  useEffect, useMemo, useState,
+  createContext, ReactNode, useCallback,
+  useContext, useEffect, useMemo, useState,
 } from "react";
-import { View } from "react-native";
+import { useColorScheme as useRNColorScheme, View } from "react-native";
 
 type ThemeMode = "light" | "dark";
+
 type AppThemeContextValue = {
   mode: ThemeMode;
   isDark: boolean;
   toggleTheme: () => Promise<void>;
 };
 
-const THEME_STORAGE_KEY = "dermascan:theme-mode";
+const THEME_KEY = "dermascan:theme-mode";
 const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
-  const { colorScheme, setColorScheme } = useColorScheme();
+  const systemScheme = useRNColorScheme(); // safe on iOS — no provider needed
   const [mode, setMode] = useState<ThemeMode>("light");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(THEME_STORAGE_KEY).then((saved) => {
-      const next: ThemeMode = saved === "dark" ? "dark" : "light";
-      setMode(next);
-      setColorScheme(next);
-      // Mark ready AFTER theme is set so iOS doesn't flash white
-      setReady(true);
-    }).catch(() => {
-      // AsyncStorage failed — still show the app with default theme
-      setReady(true);
-    });
-  }, [setColorScheme]);
+    // Load saved preference from AsyncStorage
+    AsyncStorage.getItem(THEME_KEY)
+      .then((saved) => {
+        if (saved === "dark" || saved === "light") {
+          setMode(saved);
+        } else {
+          // Fall back to system preference
+          setMode(systemScheme === "dark" ? "dark" : "light");
+        }
+      })
+      .catch(() => {
+        setMode(systemScheme === "dark" ? "dark" : "light");
+      })
+      .finally(() => {
+        setReady(true);
+      });
+  }, []); // run once on mount — intentionally no deps
+
+  const toggleTheme = useCallback(async () => {
+    const next: ThemeMode = mode === "dark" ? "light" : "dark";
+    setMode(next);
+    await AsyncStorage.setItem(THEME_KEY, next);
+  }, [mode]);
 
   const value = useMemo<AppThemeContextValue>(
     () => ({
       mode,
-      isDark: mode === "dark" || colorScheme === "dark",
-      toggleTheme: async () => {
-        const next: ThemeMode = mode === "dark" ? "light" : "dark";
-        setMode(next);
-        setColorScheme(next);
-        await AsyncStorage.setItem(THEME_STORAGE_KEY, next);
-      },
+      isDark: mode === "dark",
+      toggleTheme,
     }),
-    [colorScheme, mode, setColorScheme]
+    [mode, toggleTheme]
   );
 
-  // Hold render until theme is loaded — fixes iOS white screen
+  // Don't render children until theme preference is loaded.
+  // This prevents the white flash on iOS.
   if (!ready) {
     return <View style={{ flex: 1, backgroundColor: "#FFFCF5" }} />;
   }
 
   return (
     <AppThemeContext.Provider value={value}>
-      <StatusBar style={value.isDark ? "light" : "dark"} />
+      <StatusBar style={mode === "dark" ? "light" : "dark"} />
       {children}
     </AppThemeContext.Provider>
   );
 }
 
-export function useAppTheme() {
+export function useAppTheme(): AppThemeContextValue {
   const value = useContext(AppThemeContext);
-  if (!value) throw new Error("useAppTheme must be used inside AppThemeProvider");
+  if (!value) {
+    throw new Error("useAppTheme must be used inside <AppThemeProvider>");
+  }
   return value;
 }

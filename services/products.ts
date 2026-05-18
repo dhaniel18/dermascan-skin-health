@@ -177,14 +177,46 @@ export async function getSavedProducts(): Promise<Product[]> {
 export async function toggleSaveProduct(productId: string): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Must be signed in.");
-  const { data: existing } = await supabase.from("saved_products")
-    .select("product_id").eq("user_id", user.id).eq("product_id", productId).maybeSingle();
+
+  // Check if already saved
+  const { data: existing, error: checkError } = await supabase
+    .from("saved_products")
+    .select("product_id")
+    .eq("user_id", user.id)
+    .eq("product_id", productId)
+    .maybeSingle();
+
+  if (checkError) console.warn("[toggleSave] check error:", checkError.message);
+
   if (existing) {
-    await supabase.from("saved_products").delete()
-      .eq("user_id", user.id).eq("product_id", productId);
-    return false;
+    // DELETE the row — explicitly log any error
+    const { error: deleteError } = await supabase
+      .from("saved_products")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("product_id", productId);
+
+    if (deleteError) {
+      console.error("[toggleSave] delete error:", deleteError.message);
+      throw new Error("Could not remove saved product: " + deleteError.message);
+    }
+    // Also clear from AsyncStorage cache
+    const cached = await AsyncStorage.getItem(SAVED_KEY);
+    if (cached) {
+      const arr = JSON.parse(cached) as Product[];
+      await AsyncStorage.setItem(SAVED_KEY, JSON.stringify(arr.filter((p) => p.id !== productId)));
+    }
+    return false; // now unsaved
   }
-  await supabase.from("saved_products")
+
+  // INSERT
+  const { error: insertError } = await supabase
+    .from("saved_products")
     .insert({ user_id: user.id, product_id: productId });
-  return true;
+
+  if (insertError) {
+    console.error("[toggleSave] insert error:", insertError.message);
+    throw new Error("Could not save product: " + insertError.message);
+  }
+  return true; // now saved
 }

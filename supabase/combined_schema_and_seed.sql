@@ -1,9 +1,165 @@
 -- ============================================================
--- DermaScan — Seed Data (auto-generated from Ingredient_List.json
--- + Combination_List.json)
+-- DermaScan — Complete Combined Schema + Seed
+-- Run this as ONE block in Supabase SQL Editor
+-- after running the DROP statements above.
 -- ============================================================
 
--- INGREDIENTS
+-- ── INGREDIENTS ──────────────────────────────────────────────
+CREATE TABLE ingredients (
+  id              TEXT PRIMARY KEY,
+  name            TEXT NOT NULL,
+  aliases         TEXT[]  NOT NULL DEFAULT '{}',
+  is_comedogenic  BOOLEAN NOT NULL DEFAULT false,
+  allergen_risk   TEXT    NOT NULL DEFAULT 'Low',
+  unsuitable_for  TEXT[]  NOT NULL DEFAULT '{}',
+  category        TEXT    NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ingredients_name    ON ingredients (LOWER(name));
+CREATE INDEX idx_ingredients_aliases ON ingredients USING gin(aliases);
+
+-- ── COMBINATION WARNINGS ─────────────────────────────────────
+CREATE TABLE combination_warnings (
+  rule_id     TEXT PRIMARY KEY,
+  ingredient1 TEXT NOT NULL REFERENCES ingredients(id),
+  ingredient2 TEXT NOT NULL REFERENCES ingredients(id),
+  severity    TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  message     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_cw_pair ON combination_warnings (ingredient1, ingredient2);
+
+-- ── PROFILES (must exist before trigger) ─────────────────────
+CREATE TABLE profiles (
+  id            UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  display_name  TEXT,
+  skin_type     TEXT,
+  conditions    TEXT[]  NOT NULL DEFAULT '{}',
+  concerns      TEXT[]  NOT NULL DEFAULT '{}',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── PRODUCTS ─────────────────────────────────────────────────
+CREATE TABLE products (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  barcode             TEXT UNIQUE,
+  name                TEXT NOT NULL,
+  brand               TEXT,
+  category            TEXT,
+  ingredient_ids      TEXT[]  NOT NULL DEFAULT '{}',
+  raw_ingredient_text TEXT,
+  verification_status TEXT NOT NULL DEFAULT 'Pending',
+  uploaded_by         UUID REFERENCES auth.users(id),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_products_barcode     ON products (barcode);
+CREATE INDEX idx_products_name        ON products (LOWER(name));
+CREATE INDEX idx_products_ingredients ON products USING gin(ingredient_ids);
+CREATE INDEX idx_products_status      ON products (verification_status);
+
+-- ── SCAN HISTORY ─────────────────────────────────────────────
+CREATE TABLE scan_history (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  product_id   UUID REFERENCES products(id),
+  product_name TEXT NOT NULL,
+  scan_method  TEXT NOT NULL DEFAULT 'barcode',
+  safety_score INT,
+  warnings     JSONB NOT NULL DEFAULT '[]',
+  scanned_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, product_id)
+);
+
+CREATE INDEX idx_sh_user_time ON scan_history (user_id, scanned_at DESC);
+
+-- ── SAVED PRODUCTS ───────────────────────────────────────────
+CREATE TABLE saved_products (
+  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  product_id UUID NOT NULL REFERENCES products(id)   ON DELETE CASCADE,
+  saved_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, product_id)
+);
+
+-- ── USER ROUTINE ─────────────────────────────────────────────
+CREATE TABLE user_routine (
+  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  product_id   UUID NOT NULL REFERENCES products(id)   ON DELETE CASCADE,
+  time_of_day  TEXT NOT NULL DEFAULT 'any',
+  added_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, product_id)
+);
+
+-- ── AI RESEARCH LOG ──────────────────────────────────────────
+CREATE TABLE ai_research_log (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  ingredient_name TEXT NOT NULL,
+  resolved_id     TEXT,
+  success         BOOLEAN NOT NULL DEFAULT true,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_arl_user    ON ai_research_log (user_id, created_at DESC);
+CREATE INDEX idx_arl_created ON ai_research_log (created_at DESC);
+
+-- ── AUTO-UPDATE updated_at ───────────────────────────────────
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$$;
+
+CREATE TRIGGER trg_products_updated_at
+  BEFORE UPDATE ON products
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_profiles_updated_at
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ── AUTO-CREATE PROFILE ON SIGN-UP ───────────────────────────
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, display_name)
+  VALUES (NEW.id, NEW.raw_user_meta_data->>'name')
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER trg_on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- ── ROW LEVEL SECURITY ───────────────────────────────────────
+ALTER TABLE ingredients          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE combination_warnings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scan_history         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE saved_products       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_routine         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_research_log      ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "ingredients_read"    ON ingredients          FOR SELECT USING (true);
+CREATE POLICY "warnings_read"       ON combination_warnings FOR SELECT USING (true);
+CREATE POLICY "profiles_self"       ON profiles             USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY "scan_history_self"   ON scan_history         USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "saved_products_self" ON saved_products       USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "routine_self"        ON user_routine         USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "arl_self"            ON ai_research_log      USING (auth.uid() = user_id);
+
+CREATE POLICY "products_read"   ON products FOR SELECT USING (verification_status = 'Verified' OR uploaded_by = auth.uid());
+CREATE POLICY "products_insert" ON products FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "products_update" ON products FOR UPDATE USING (uploaded_by = auth.uid());
+
+
+-- ── SEED: INGREDIENTS ───────────────────────────────────────
 INSERT INTO ingredients (id, name, aliases, is_comedogenic, allergen_risk, unsuitable_for, category) VALUES
   ('ING-001', 'Salicylic Acid', '{"BHA","Beta Hydroxy Acid"}', false, 'Low', '{"Extremely Dry","Sensitive"}', 'Active - Exfoliant'),
   ('ING-002', 'Retinol', '{"Vitamin A","Retinyl Palmitate"}', false, 'Medium', '{"Sensitive","Pregnant"}', 'Active - Anti-aging'),
@@ -107,7 +263,7 @@ INSERT INTO ingredients (id, name, aliases, is_comedogenic, allergen_risk, unsui
   ('ING-100', 'Octocrylene', '{"UV Filter"}', false, 'Medium', '{"Sensitive"}', 'UV Filter')
 ON CONFLICT (id) DO NOTHING;
 
--- COMBINATION WARNINGS
+-- ── SEED: COMBINATION WARNINGS ─────────────────────────────
 INSERT INTO combination_warnings (rule_id, ingredient1, ingredient2, severity, title, message) VALUES
   ('WARN-001', 'ING-001', 'ING-002', 'High', 'Severe Barrier Risk', 'BAHAYA: Mencampur BHA (Salicylic Acid) dan Retinol dapat menyebabkan iritasi parah, kemerahan, dan mengelupas. Pisahkan penggunaannya (BHA Pagi / Retinol Malam).'),
   ('WARN-002', 'ING-004', 'ING-002', 'Medium', 'pH Imbalance & Irritation', 'PERINGATAN: Vitamin C dan Retinol bekerja di tingkat pH yang berbeda dan sangat mengiritasi jika digabung. Gunakan Vitamin C di pagi hari dan Retinol di malam hari.'),

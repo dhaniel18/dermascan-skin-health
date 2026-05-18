@@ -1,5 +1,5 @@
 import { ScanLine } from "lucide-react-native";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { colors } from "@/constants/theme";
 
@@ -7,14 +7,34 @@ export function Logo() {
   const { isDark } = useAppTheme();
 
   return (
-    <View className="items-center gap-4">
-      <View className="h-24 w-24 items-center justify-center rounded-[32px] bg-periwinkle-soft dark:bg-darkSurface">
-        <ScanLine size={44} color={isDark ? colors.cloud : colors.navy} strokeWidth={2.6} />
+    <View style={styles.container}>
+      <View style={[
+        styles.iconBox,
+        { backgroundColor: isDark ? colors.darkSurface : colors.maroon }
+      ]}>
+        <ScanLine size={44} color={colors.cloud} strokeWidth={2.6} />
       </View>
-      <View className="items-center">
-        <Text className="text-5xl font-extrabold text-navy dark:text-cloud">DermaScan</Text>
-        <Text className="mt-2 text-center text-base text-muted dark:text-darkMuted">Skin health, clearer decisions</Text>
+      <View style={styles.textBox}>
+        <Text style={[styles.title, { color: isDark ? colors.cloud : colors.navy }]}>
+          DermaScan
+        </Text>
+        <Text style={[styles.subtitle, { color: isDark ? colors.darkMuted : colors.muted }]}>
+          Skin health, clearer decisions
+        </Text>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { alignItems: "center", gap: 16 },
+  iconBox: {
+    width: 96, height: 96,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textBox: { alignItems: "center" },
+  title: { fontSize: 40, fontWeight: "800" },
+  subtitle: { marginTop: 6, fontSize: 15, textAlign: "center" },
+});

@@ -1,7 +1,9 @@
 // ============================================================
 // DermaScan — Supabase Client
+// Note: react-native-url-polyfill/auto is imported in
+// app/_layout.tsx (root) — NOT here. Importing it in a non-root
+// module causes silent crashes on iOS.
 // ============================================================
-import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 
@@ -19,7 +21,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Helper: throw on Supabase error
 export function assertNoError<T>(
   result: { data: T | null; error: unknown },
   label: string

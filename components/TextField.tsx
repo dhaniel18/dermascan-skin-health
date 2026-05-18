@@ -1,19 +1,43 @@
-import { Text, TextInput, TextInputProps, View } from "react-native";
+import { StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
+import { useAppTheme } from "@/components/AppThemeProvider";
+import { colors } from "@/constants/theme";
 
-type TextFieldProps = TextInputProps & {
-  label: string;
-};
+type TextFieldProps = TextInputProps & { label: string };
 
-export function TextField({ label, secureTextEntry, ...props }: TextFieldProps) {
+export function TextField({ label, secureTextEntry, style, ...props }: TextFieldProps) {
+  const { isDark } = useAppTheme();
+
   return (
-    <View className="gap-2">
-      <Text className="text-sm font-bold text-navy dark:text-cloud">{label}</Text>
+    <View style={styles.wrapper}>
+      <Text style={[styles.label, { color: isDark ? colors.cloud : colors.navy }]}>
+        {label}
+      </Text>
       <TextInput
         {...props}
         secureTextEntry={secureTextEntry}
-        placeholderTextColor="#777D9A"
-        className="h-14 rounded-2xl border border-border bg-card px-4 text-base text-navy dark:border-darkBorder dark:bg-darkSurface dark:text-cloud"
+        placeholderTextColor={colors.muted}
+        style={[
+          styles.input,
+          {
+            backgroundColor: isDark ? colors.darkSurface : "#F0F1FA",
+            borderColor:     isDark ? colors.darkBorder  : colors.periwinkle,
+            color:           isDark ? colors.cloud       : colors.navy,
+          },
+          style,
+        ]}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: { gap: 8 },
+  label: { fontSize: 14, fontWeight: "700" },
+  input: {
+    height: 56,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+});

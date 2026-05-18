@@ -17,6 +17,7 @@ import {
   CheckCircle, Sparkles, FlipHorizontal, Zap,
 } from "lucide-react-native";
 import { useRef, useState, useCallback } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator, Animated, StyleSheet,
   Text, TouchableOpacity, View,
@@ -45,6 +46,7 @@ type ScanState =
   | { status: "error"; message: string };
 
 export default function ScanScreen() {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [state, setState] = useState<ScanState>({ status: "idle" });
   const [mode, setMode] = useState<CameraMode>("barcode");
@@ -240,7 +242,7 @@ export default function ScanScreen() {
 
   return (
     <Screen scroll={false}>
-      <View className="flex-1 pb-24">
+      <View style={{ flex: 1, paddingBottom: 66 + Math.max(insets.bottom, 10) }}>
 
         {/* Dark camera section */}
         <View className="-mx-6 -mt-4 flex-1 bg-navy px-6 pb-5 pt-8">

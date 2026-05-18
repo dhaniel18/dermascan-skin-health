@@ -1,7 +1,7 @@
 // ============================================================
 // DermaScan — OCR Service
-// Sends a captured photo to the Gemini Vision proxy and returns
-// the extracted ingredient list. No extra library needed.
+// Uses string literal "base64" instead of FileSystem.EncodingType.Base64
+// to avoid the iOS crash: "Cannot read property 'Base64' of undefined"
 // ============================================================
 import * as FileSystem from "expo-file-system";
 import { supabase } from "@/lib/supabase";
@@ -15,24 +15,15 @@ export type OcrResult = {
   ingredients: string[];
 };
 
-/**
- * Take a photo URI (from CameraView.takePictureAsync),
- * convert it to base64, and send to the Gemini OCR proxy.
- * Returns the extracted ingredient list.
- */
-export async function extractIngredientsFromPhoto(
-  photoUri: string
-): Promise<OcrResult> {
-  // 1. Read photo as base64
+export async function extractIngredientsFromPhoto(photoUri: string): Promise<OcrResult> {
+  // Use string literal "base64" — FileSystem.EncodingType.Base64 is undefined on iOS
   const base64 = await FileSystem.readAsStringAsync(photoUri, {
-    encoding: FileSystem.EncodingType.Base64,
+    encoding: "base64" as FileSystem.EncodingType,
   });
 
-  // 2. Get current session token
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Must be signed in to use OCR.");
 
-  // 3. Send to proxy
   const response = await fetch(getProxyUrl(), {
     method: "POST",
     headers: {
@@ -48,20 +39,15 @@ export async function extractIngredientsFromPhoto(
     signal: AbortSignal.timeout(30_000),
   });
 
-  if (response.status === 429) {
-    throw new Error("Too many scans. Please wait a minute before scanning again.");
-  }
-
+  if (response.status === 429) throw new Error("Too many scans. Please wait a minute.");
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: "Unknown error" }));
     throw new Error(err.error ?? "OCR failed");
   }
 
   const data = await response.json() as OcrResult & { source: string };
-
   if (!data.ingredients || data.ingredients.length === 0) {
-    throw new Error("No ingredient list found in the photo. Try moving closer or improving lighting.");
+    throw new Error("No ingredient list found. Move closer to the label and try again.");
   }
-
   return { rawText: data.rawText, ingredients: data.ingredients };
 }

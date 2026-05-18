@@ -1,7 +1,8 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { ReactNode } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "@/components/AppThemeProvider";
+import { colors } from "@/constants/theme";
 
 type ButtonProps = {
   children: ReactNode;
@@ -9,15 +10,66 @@ type ButtonProps = {
   disabled?: boolean;
   loading?: boolean;
   variant?: "brand" | "soft" | "outline";
-  className?: string;
+  style?: object;
 };
 
-export function Button({ children, onPress, disabled, loading, variant = "brand", className = "" }: ButtonProps) {
+const styles = StyleSheet.create({
+  base: {
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  inner: {
+    height: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+  },
+  brandText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.cloud,
+  },
+  otherText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.navy,
+  },
+  softBg: {
+    backgroundColor: colors.periwinkleSoft,
+    borderRadius: 16,
+  },
+  outlineBg: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+});
+
+export function Button({
+  children,
+  onPress,
+  disabled,
+  loading,
+  variant = "brand",
+  style,
+}: ButtonProps) {
   const { isDark } = useAppTheme();
-  const content = (
-    <View className="h-14 flex-row items-center justify-center gap-2 rounded-2xl px-5">
-      {loading ? <ActivityIndicator color={variant === "brand" || isDark ? "#FFFCF5" : "#374375"} /> : null}
-      <Text className={`text-base font-bold ${variant === "brand" ? "text-cloud" : "text-navy dark:text-cloud"}`}>{children}</Text>
+
+  const textStyle = variant === "brand"
+    ? styles.brandText
+    : [styles.otherText, isDark && { color: colors.cloud }];
+
+  const inner = (
+    <View style={styles.inner}>
+      {loading && (
+        <ActivityIndicator
+          color={variant === "brand" ? colors.cloud : (isDark ? colors.cloud : colors.navy)}
+        />
+      )}
+      <Text style={textStyle}>{children}</Text>
     </View>
   );
 
@@ -26,24 +78,30 @@ export function Button({ children, onPress, disabled, loading, variant = "brand"
       accessibilityRole="button"
       disabled={disabled || loading}
       onPress={onPress}
-      className={`${disabled ? "opacity-50" : "active:opacity-90"} ${className}`}
+      style={[
+        styles.base,
+        disabled && { opacity: 0.5 },
+        style,
+      ]}
     >
       {variant === "brand" ? (
         <LinearGradient
           colors={isDark ? ["#895159", "#374375"] : ["#895159", "#DFAEA1"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          className="rounded-2xl"
+          style={styles.base}
         >
-          {content}
+          {inner}
         </LinearGradient>
       ) : (
         <View
-          className={`rounded-2xl ${
-            variant === "soft" ? "bg-periwinkle-soft dark:bg-darkSurfaceSoft" : "border border-border bg-card dark:border-darkBorder dark:bg-darkSurface"
-          }`}
+          style={
+            variant === "soft"
+              ? [styles.softBg, isDark && { backgroundColor: "#2a2f4e" }]
+              : [styles.outlineBg, isDark && { borderColor: "#3a3f60", backgroundColor: "#1e2340" }]
+          }
         >
-          {content}
+          {inner}
         </View>
       )}
     </Pressable>
