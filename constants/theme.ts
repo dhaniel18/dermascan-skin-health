@@ -1,0 +1,20 @@
+export const colors = {
+  navy: "#374375",
+  cloud: "#FFFCF5",
+  periwinkle: "#BABDE2",
+  periwinkleSoft: "#E8E9F6",
+  maroon: "#895159",
+  maroonSoft: "#E9D5D8",
+  peach: "#DFAEA1",
+  peachSoft: "#FBEEE9",
+  muted: "#777D9A",
+  border: "#E5E6F0",
+  card: "#FFFFFF",
+  success: "#6BAF89",
+  warning: "#E1A83E",
+  darkBackground: "#20284F",
+  darkSurface: "#2F3867",
+  darkSurfaceSoft: "#414B7F",
+  darkMuted: "#D7DAF0",
+  darkBorder: "#56609A"
+};
