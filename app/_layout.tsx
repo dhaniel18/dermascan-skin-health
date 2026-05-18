@@ -22,6 +22,8 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function RootLayout() {
+  console.log("DermaScan RootLayout mounted.");
+
   return (
     <AppThemeProvider>
       <Stack screenOptions={{ headerShown: false }}>

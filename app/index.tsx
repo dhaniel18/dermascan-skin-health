@@ -1,6 +1,6 @@
 import { Link } from "expo-router";
 import { ShieldCheck, Sparkles, ScanLine } from "lucide-react-native";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { Button } from "@/components/Button";
 import { Logo } from "@/components/Logo";
@@ -15,26 +15,36 @@ const features = [
 
 export default function WelcomeScreen() {
   const { isDark } = useAppTheme();
+  console.log("DermaScan WelcomeScreen rendered.");
 
   return (
     <Screen scroll={false}>
-      <View className="flex-1 justify-between py-8">
-        <View className="pt-10">
+      <View className="flex-1 justify-between py-8" style={styles.container}>
+        <View className="pt-10" style={styles.logoWrap}>
           <Logo />
         </View>
 
-        <View className="flex-row justify-between gap-3">
+        <View className="flex-row justify-between gap-3" style={styles.features}>
           {features.map(({ icon: Icon, label }) => (
-            <View key={label} className="flex-1 items-center gap-3 rounded-3xl bg-card p-4 dark:bg-darkSurface">
-              <View className="h-12 w-12 items-center justify-center rounded-2xl bg-periwinkle-soft dark:bg-darkSurfaceSoft">
+            <View
+              key={label}
+              className="flex-1 items-center gap-3 rounded-3xl bg-card p-4 dark:bg-darkSurface"
+              style={[styles.featureCard, isDark && styles.darkCard]}
+            >
+              <View
+                className="h-12 w-12 items-center justify-center rounded-2xl bg-periwinkle-soft dark:bg-darkSurfaceSoft"
+                style={[styles.featureIcon, isDark && styles.darkSoft]}
+              >
                 <Icon size={24} color={isDark ? colors.cloud : colors.navy} strokeWidth={2.4} />
               </View>
-              <Text className="text-center text-xs font-bold leading-4 text-navy dark:text-cloud">{label}</Text>
+              <Text className="text-center text-xs font-bold leading-4 text-navy dark:text-cloud" style={[styles.featureText, isDark && styles.darkText]}>
+                {label}
+              </Text>
             </View>
           ))}
         </View>
 
-        <View className="gap-3">
+        <View className="gap-3" style={styles.actions}>
           <Link href="/create-account" asChild>
             <Button>Create Account</Button>
           </Link>
@@ -46,3 +56,54 @@ export default function WelcomeScreen() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  actions: {
+    gap: 12,
+  },
+  container: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingVertical: 32,
+  },
+  darkCard: {
+    backgroundColor: colors.darkSurface,
+  },
+  darkSoft: {
+    backgroundColor: colors.darkSurfaceSoft,
+  },
+  darkText: {
+    color: colors.cloud,
+  },
+  featureCard: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderRadius: 24,
+    flex: 1,
+    gap: 12,
+    padding: 16,
+  },
+  featureIcon: {
+    alignItems: "center",
+    backgroundColor: colors.periwinkleSoft,
+    borderRadius: 16,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  features: {
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  featureText: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 16,
+    textAlign: "center",
+  },
+  logoWrap: {
+    paddingTop: 40,
+  },
+});
