@@ -5,7 +5,7 @@ import {
   createContext, ReactNode, useContext,
   useEffect, useMemo, useState,
 } from "react";
-import { View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 
 type ThemeMode = "light" | "dark";
 type AppThemeContextValue = {
@@ -23,16 +23,31 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(THEME_STORAGE_KEY).then((saved) => {
-      const next: ThemeMode = saved === "dark" ? "dark" : "light";
-      setMode(next);
-      setColorScheme(next);
-      // Mark ready AFTER theme is set so iOS doesn't flash white
+    let mounted = true;
+    const fallback = setTimeout(() => {
+      if (!mounted) return;
+      console.warn("Theme load timed out; continuing with the default theme.");
       setReady(true);
-    }).catch(() => {
-      // AsyncStorage failed — still show the app with default theme
-      setReady(true);
-    });
+    }, 1500);
+
+    AsyncStorage.getItem(THEME_STORAGE_KEY)
+      .then((saved) => {
+        if (!mounted) return;
+        const next: ThemeMode = saved === "dark" ? "dark" : "light";
+        setMode(next);
+        setColorScheme(next);
+        setReady(true);
+      })
+      .catch((error) => {
+        console.warn("Theme load failed; continuing with the default theme.", error);
+        if (mounted) setReady(true);
+      })
+      .finally(() => clearTimeout(fallback));
+
+    return () => {
+      mounted = false;
+      clearTimeout(fallback);
+    };
   }, [setColorScheme]);
 
   const value = useMemo<AppThemeContextValue>(
@@ -49,9 +64,12 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
     [colorScheme, mode, setColorScheme]
   );
 
-  // Hold render until theme is loaded — fixes iOS white screen
   if (!ready) {
-    return <View style={{ flex: 1, backgroundColor: "#FFFCF5" }} />;
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFCF5" }}>
+        <ActivityIndicator color="#374375" />
+      </View>
+    );
   }
 
   return (
