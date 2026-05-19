@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Text, View, ActivityIndicator } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";

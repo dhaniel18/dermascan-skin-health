@@ -47,6 +47,25 @@ export async function getCurrentUser(): Promise<User | null> {
   return data.user ? mapUser(data.user) : null;
 }
 
+export async function updateDisplayName(name: string): Promise<User | null> {
+  const cleanName = sanitizeText(name, 80);
+  const { data, error } = await supabase.auth.updateUser({
+    data: { name: cleanName },
+  });
+
+  if (error) throw new Error(error.message);
+
+  if (data.user) {
+    await supabase.from("profiles").upsert({
+      id: data.user.id,
+      display_name: cleanName,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  return data.user ? mapUser(data.user) : null;
+}
+
 export async function sendPasswordReset(email: string): Promise<void> {
   if (!isValidEmail(email)) throw new Error("Invalid email address.");
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());

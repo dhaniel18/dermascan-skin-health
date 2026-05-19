@@ -2,7 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import type { ScrollViewProps } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "@/components/AppThemeProvider";
 
 type ScreenProps = {
@@ -14,6 +14,8 @@ type ScreenProps = {
 
 export function Screen({ children, scroll = true, padded = true, refreshControl }: ScreenProps) {
   const { isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = 104 + Math.max(insets.bottom, 10);
 
   return (
     <LinearGradient colors={isDark ? ["#20284F", "#2F3867"] : ["#FFFCF5", "#F3F4FB"]} className="flex-1" style={styles.fill}>
@@ -23,7 +25,7 @@ export function Screen({ children, scroll = true, padded = true, refreshControl 
             className="flex-1"
             style={styles.fill}
             contentContainerClassName={`${padded ? "px-6 pt-4" : ""} pb-8`}
-            contentContainerStyle={[padded && styles.paddedContent, styles.scrollContent]}
+            contentContainerStyle={[padded && styles.paddedContent, { paddingBottom: bottomPadding }]}
             showsVerticalScrollIndicator={false}
             refreshControl={refreshControl}
           >

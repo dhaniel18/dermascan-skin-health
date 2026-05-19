@@ -12,6 +12,7 @@
 // ============================================================
 import { supabase } from "@/lib/supabase";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+import { getIngredientByName } from "@/lib/ingredientDatabase";
 import type { Ingredient } from "@/types/domain";
 
 // In-memory cache — survives the session, resets on app restart
@@ -299,6 +300,5 @@ export async function batchResolveIngredients(
 }
 
 export function findUnknownIngredients(names: string[]): string[] {
-  const { getIngredientByName } = require("@/lib/ingredientDatabase");
   return names.filter((n) => !getIngredientByName(n.toLowerCase().trim()));
 }

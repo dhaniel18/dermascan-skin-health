@@ -76,7 +76,7 @@ type HFRow = {
 export async function fetchHuggingFaceIngredients(
   offset = 0,
   length = 100
-): Promise<Array<{ name: string; inci: string; fn: string }>> {
+): Promise<{ name: string; inci: string; fn: string }[]> {
   try {
     const url = `${HF_API}&offset=${offset}&length=${length}`;
     const res = await fetchWithTimeout(url, {}, 8000);

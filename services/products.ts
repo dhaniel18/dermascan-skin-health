@@ -86,6 +86,21 @@ export async function getProductByBarcode(barcode: string): Promise<Product | nu
   return data ? rowToProduct(data) : null;
 }
 
+export async function getProductById(productId: string): Promise<Product | null> {
+  const { data, error } = await supabase
+    .from("products")
+    .select("*")
+    .eq("id", productId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[products] by id:", error.message);
+    return null;
+  }
+
+  return data ? rowToProduct(data) : null;
+}
+
 // ── Search ────────────────────────────────────────────────────
 export async function searchProducts(query: string): Promise<Product[]> {
   if (!query.trim()) return [];
@@ -261,4 +276,15 @@ export async function toggleSaveProduct(productId: string): Promise<boolean> {
   await supabase.from("saved_products")
     .insert({ user_id: user.id, product_id: productId });
   return true;
+}
+
+export async function saveProduct(productId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Must be signed in.");
+
+  const { error } = await supabase
+    .from("saved_products")
+    .upsert({ user_id: user.id, product_id: productId }, { onConflict: "user_id,product_id" });
+
+  if (error) throw new Error(`[products] save error: ${error.message}`);
 }

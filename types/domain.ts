@@ -89,13 +89,13 @@ export type RoutineProduct = {
 };
 
 export type RoutineCompatibilityResult = {
-  conflicts: Array<{
+  conflicts: {
     warning: CombinationWarning;
     ingredient1Name: string;
     ingredient2Name: string;
     product1Name: string;
     product2Name: string;
-  }>;
+  }[];
   morningOrder: string[];
   eveningOrder: string[];
 };

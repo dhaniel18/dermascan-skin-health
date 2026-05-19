@@ -7,11 +7,11 @@
 // ============================================================
 import {
   CameraView,
+  type CameraView as CameraViewType,
   type BarcodeScanningResult,
   type BarcodeType,
   useCameraPermissions,
 } from "expo-camera";
-import type { CameraView as CameraViewType } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import {
   Camera, ScanLine, ScanText, AlertTriangle,
@@ -168,7 +168,7 @@ export default function ScanScreen() {
     } catch (e: unknown) {
       setState({ status: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, [isIdle]);
+  }, []);
 
   const handleCaptureForOcr = useCallback(async () => {
     if (!cameraRef.current || !isIdle) return;
@@ -302,7 +302,7 @@ export default function ScanScreen() {
       <Screen>
         <Text className="text-3xl font-extrabold text-navy dark:text-cloud">Barcode Not Found</Text>
         <Text className="mt-2 text-sm text-muted dark:text-darkMuted">
-          Barcode <Text className="font-bold">{state.barcode}</Text> isn't in our database yet.
+          Barcode <Text className="font-bold">{state.barcode}</Text> is not in our database yet.
         </Text>
         <Text className="mt-4 text-sm text-muted dark:text-darkMuted">
           Switch to <Text className="font-bold">Ingredient Label</Text> mode and point your
