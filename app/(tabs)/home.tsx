@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import {
   AlertTriangle,
   Bookmark,
@@ -31,7 +31,7 @@ import { analyseIngredients, resolveIngredientIds } from "@/lib/analysisEngine";
 import { getCurrentUser } from "@/services/auth";
 import { enrichAliasesFromHuggingFace } from "@/services/ingredients";
 import { getSkinProfile } from "@/services/profile";
-import { getProductById, getDiscoverFeed, saveProduct, searchProducts } from "@/services/products";
+import { getProductById, getDiscoverFeed, getSavedProducts, saveProduct, searchProducts } from "@/services/products";
 import { addToRoutine } from "@/services/routine";
 import { getScanHistory } from "@/services/scans";
 import type { AnalysisResult, Product, ScanHistoryItem, SkinProfile, User } from "@/types/domain";
@@ -98,6 +98,7 @@ export default function HomeScreen() {
   const [recentScans, setRecentScans] = useState<EnrichedScan[]>([]);
   const [discoverProducts, setDiscoverProducts] = useState<Product[]>([]);
   const [searchedProducts, setSearchedProducts] = useState<Product[]>([]);
+  const [savedProductIds, setSavedProductIds] = useState<Set<string>>(() => new Set());
   const [discoverQuery, setDiscoverQuery] = useState("");
   const [profile, setProfile] = useState<SkinProfile | null>(null);
   const [tip] = useState(() => skincareTips[Math.floor(Math.random() * skincareTips.length)]);
@@ -110,16 +111,18 @@ export default function HomeScreen() {
   const [ingredientsOpen, setIngredientsOpen] = useState(false);
   const [routinePickerOpen, setRoutinePickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [detailSaved, setDetailSaved] = useState(false);
   const [addingRoutine, setAddingRoutine] = useState(false);
   const [searchingDiscover, setSearchingDiscover] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [currentUser, scans, discover, skinProfile] = await Promise.all([
+      const [currentUser, scans, discover, skinProfile, savedProducts] = await Promise.all([
         getCurrentUser(),
         getScanHistory(),
         getDiscoverFeed(),
         getSkinProfile(),
+        getSavedProducts(),
       ]);
       const samples = makeSampleScans(discover, skinProfile);
       const seenProductIds = new Set(scans.map((scan) => scan.productId).filter(Boolean));
@@ -129,6 +132,7 @@ export default function HomeScreen() {
       setProfile(skinProfile);
       setRecentScans([...scans, ...fillers].slice(0, Math.max(scans.length, 5)));
       setDiscoverProducts(discover.slice(0, 12));
+      setSavedProductIds(new Set(savedProducts.map((product) => product.id)));
       enrichAliasesFromHuggingFace().catch(() => {});
     } catch (error) {
       console.warn("[home]", error);
@@ -192,6 +196,7 @@ export default function HomeScreen() {
     setSelectedScan(scan);
     setDetailProduct(scan.sampleProduct ?? null);
     setDetailAnalysis(scan.sampleAnalysis ?? null);
+    setDetailSaved(scan.productId ? savedProductIds.has(scan.productId) : false);
     setIngredientsOpen(false);
     setDetailLoading(true);
 
@@ -208,12 +213,13 @@ export default function HomeScreen() {
 
       setDetailProduct(product);
       setDetailAnalysis(analysis);
+      setDetailSaved(product ? savedProductIds.has(product.id) : false);
     } catch (error) {
       console.warn("[home detail]", error);
     } finally {
       setDetailLoading(false);
     }
-  }, [profile]);
+  }, [profile, savedProductIds]);
 
   const openProductDetail = useCallback((product: Product) => {
     const analysis = analyseIngredients(resolveIngredientIds(product.ingredientIds), profile);
@@ -244,8 +250,8 @@ export default function HomeScreen() {
     setSaving(true);
     try {
       await saveProduct(detailProduct.id);
-      closeDetail();
-      router.push("/saved");
+      setSavedProductIds((current) => new Set(current).add(detailProduct.id));
+      setDetailSaved(true);
     } catch (error) {
       Alert.alert("Save failed", error instanceof Error ? error.message : "Please try again.");
     } finally {
@@ -511,12 +517,12 @@ export default function HomeScreen() {
                   </View>
 
                   <Pressable
-                    disabled={!detailProduct || saving}
+                    disabled={!detailProduct || saving || detailSaved}
                     onPress={handleSaveProduct}
                     className="mt-7 h-16 flex-row items-center justify-center gap-3 rounded-3xl bg-maroon disabled:opacity-50"
                   >
                     {saving ? <ActivityIndicator color={colors.cloud} /> : <Bookmark size={24} color={colors.cloud} />}
-                    <Text className="text-xl font-extrabold text-cloud">Save Product</Text>
+                    <Text className="text-xl font-extrabold text-cloud">{detailSaved ? "Saved Product" : "Save Product"}</Text>
                   </Pressable>
 
                   <Pressable
