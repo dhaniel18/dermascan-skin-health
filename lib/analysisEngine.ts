@@ -8,7 +8,7 @@ import type {
 import { getIngredientById, getIngredientByName, getWarningBetween, registerIngredient } from "./ingredientDatabase";
 
 function makeFallbackIngredient(rawName: string): Ingredient {
-  const name = rawName.trim().replace(/\s+/g, " ");
+  const name = cleanIngredientName(rawName);
   return {
     id: `ING-OCR-${name.toUpperCase().replace(/[^A-Z0-9]/g, "-").replace(/-+/g, "-").slice(0, 28)}`,
     name,
@@ -20,13 +20,22 @@ function makeFallbackIngredient(rawName: string): Ingredient {
   };
 }
 
+export function cleanIngredientName(rawName: string): string {
+  return rawName
+    .replace(/[“”]/g, "\"")
+    .replace(/^[\s"',.:;]+/g, "")
+    .replace(/[\s"',.:;]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // ── 1. Sync parse (bundled DB only, offline) ─────────────────
 export function parseIngredientText(raw: string): Ingredient[] {
   const found: Ingredient[] = [];
   const seen = new Set<string>();
   const tokens = raw
     .replace(/\([^)]*\)/g, " ").replace(/[;\/]/g, ",")
-    .split(",").map((s) => s.trim()).filter(Boolean);
+    .split(",").map(cleanIngredientName).filter(Boolean);
   for (const token of tokens) {
     const ing = getIngredientByName(token);
     if (ing && !seen.has(ing.id)) { seen.add(ing.id); found.push(ing); }
@@ -57,10 +66,10 @@ export async function parseIngredientTextWithAI(
 
   // Accept either a comma string or pre-split array (from OCR)
   const tokens: string[] = Array.isArray(rawOrTokens)
-    ? rawOrTokens.map((s) => s.trim()).filter(Boolean)
+    ? rawOrTokens.map(cleanIngredientName).filter(Boolean)
     : rawOrTokens
         .replace(/\([^)]*\)/g, " ").replace(/[;\/]/g, ",")
-        .split(",").map((s) => s.trim()).filter(Boolean);
+        .split(",").map(cleanIngredientName).filter(Boolean);
 
   if (tokens.length === 0) {
     return { ingredients: [], aiResearched: [], cloudResolved: [], failed: [] };

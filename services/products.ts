@@ -179,6 +179,7 @@ export async function saveOcrScannedProduct(input: {
   rawIngredientText: string;
   ingredientIds: string[];
   name?: string;
+  barcode?: string;
   category?: string;
 }): Promise<Product | null> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -186,10 +187,11 @@ export async function saveOcrScannedProduct(input: {
 
   const cleanText = sanitizeIngredientText(input.rawIngredientText);
   const cleanName = sanitizeProductName(input.name ?? "Scanned Skincare Label");
+  const cleanBarcode = input.barcode?.trim();
+  const barcode = cleanBarcode && isValidBarcode(cleanBarcode) ? cleanBarcode : null;
   const imageUrl = await findProductImageUrl(cleanName);
-
-  const { data, error } = await supabase.from("products").insert({
-    barcode: null,
+  const payload = {
+    barcode,
     name: cleanName,
     brand: null,
     category: input.category ?? "Skincare",
@@ -198,10 +200,83 @@ export async function saveOcrScannedProduct(input: {
     raw_ingredient_text: cleanText,
     verification_status: "Pending",
     uploaded_by: user.id,
+  };
+
+  if (barcode) {
+    const { data: existing } = await supabase
+      .from("products")
+      .select("*")
+      .eq("barcode", barcode)
+      .maybeSingle();
+
+    if (existing?.uploaded_by === user.id) {
+      const { data, error } = await supabase
+        .from("products")
+        .update(payload)
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.warn("[products] update OCR product:", error.message);
+        return null;
+      }
+
+      return rowToProduct(data);
+    }
+
+    if (existing) return rowToProduct(existing);
+  }
+
+  const { data, error } = await supabase.from("products").insert({
+    ...payload,
+    barcode,
   }).select().single();
 
   if (error) {
     console.warn("[products] save OCR product:", error.message);
+    return null;
+  }
+
+  return rowToProduct(data);
+}
+
+export async function createPendingBarcodeProduct(input: {
+  barcode: string;
+  name: string;
+  category?: string;
+}): Promise<Product | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const cleanBarcode = input.barcode.trim();
+  if (!isValidBarcode(cleanBarcode)) return null;
+
+  const cleanName = sanitizeProductName(input.name);
+  if (!cleanName) return null;
+
+  const { data: existing } = await supabase
+    .from("products")
+    .select("*")
+    .eq("barcode", cleanBarcode)
+    .maybeSingle();
+
+  if (existing) return rowToProduct(existing);
+
+  const { data, error } = await supabase.from("products").insert({
+    barcode: cleanBarcode,
+    name: cleanName,
+    brand: null,
+    category: input.category ?? "Skincare",
+    image_url: await findProductImageUrl(cleanName) ?? null,
+    ingredient_ids: [],
+    raw_ingredient_text: null,
+    verification_status: "Pending",
+    uploaded_by: user.id,
+  }).select().single();
+
+  if (error) {
+    console.warn("[products] create pending barcode product:", error.message);
     return null;
   }
 

@@ -68,9 +68,13 @@ const styles = StyleSheet.create({
   },
   darkCard: {
     backgroundColor: colors.darkSurface,
+    borderColor: colors.darkBorder,
+    borderWidth: 1,
   },
   darkSoft: {
-    backgroundColor: colors.darkSurfaceSoft,
+    backgroundColor: colors.darkSurface,
+    borderColor: colors.darkBorder,
+    borderWidth: 1,
   },
   darkText: {
     color: colors.cloud,

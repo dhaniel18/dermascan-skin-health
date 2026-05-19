@@ -4,6 +4,7 @@ import { ActivityIndicator, Animated, Easing, Modal, Pressable, RefreshControl, 
 import { CheckCircle2, Moon, Pencil, Sun, Trash2, XCircle } from "lucide-react-native";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { Screen } from "@/components/Screen";
+import { SkeletonBlock } from "@/components/Skeleton";
 import { colors } from "@/constants/theme";
 import { addToRoutine, checkRoutineCompatibility, getUserRoutine, removeFromRoutine } from "@/services/routine";
 import type { RoutineCompatibilityResult, RoutineProduct } from "@/types/domain";
@@ -126,10 +127,11 @@ export default function LayeringScreen() {
   };
 
   if (loading) return (
-    <Screen scroll={false}>
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color={isDark ? colors.cloud : colors.navy} />
-      </View>
+    <Screen>
+      <SkeletonBlock width="70%" height={42} radius={16} />
+      <SkeletonBlock height={148} radius={24} className="mt-6" />
+      <SkeletonBlock height={178} radius={24} className="mt-5" />
+      <SkeletonBlock height={178} radius={24} className="mt-5" />
     </Screen>
   );
 

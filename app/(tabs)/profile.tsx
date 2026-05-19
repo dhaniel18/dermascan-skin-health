@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from "expo-router";
-import { ChevronRight, Clock, LogOut, Moon, Save, Settings, ShieldCheck, User as UserIcon } from "lucide-react-native";
+import { ChevronRight, Clock, LogOut, Moon, Save, Settings, ShieldCheck } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -9,24 +9,27 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Image,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { Screen } from "@/components/Screen";
+import { ProfileSkeleton } from "@/components/Skeleton";
 import { skinConditions, skinConcerns, skinTypes } from "@/constants/options";
 import { colors } from "@/constants/theme";
-import { analyseIngredients, resolveIngredientIds } from "@/lib/analysisEngine";
+import { analyseIngredients, parseIngredientTextWithAI, resolveIngredientIds } from "@/lib/analysisEngine";
 import { getCurrentUser, signOut, updateDisplayName } from "@/services/auth";
 import { getSkinProfile, saveSkinProfile } from "@/services/profile";
-import { getDiscoverFeed } from "@/services/products";
+import { getDiscoverFeed, getProductById } from "@/services/products";
 import { getScanHistory } from "@/services/scans";
 import type { Product, ScanHistoryItem, SkinProfile, User } from "@/types/domain";
 
 const skinTypeLabels = new Map(skinTypes.map((item) => [item.id, item.title]));
 const conditionLabels = new Map(skinConditions.map((item) => [item.id, item.title]));
 const concernLabels = new Map(skinConcerns.map((item) => [item.id, item.title]));
+const logoSource = require("@/assets/images/dermascan-logo.png");
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(date));
@@ -54,6 +57,17 @@ function makeSampleScans(products: Product[], profile: SkinProfile | null): Scan
   });
 }
 
+async function analyseProductScore(product: Product, profile: SkinProfile | null) {
+  let ingredients = resolveIngredientIds(product.ingredientIds);
+
+  if (product.rawIngredientText && (ingredients.length === 0 || ingredients.length < product.ingredientIds.length)) {
+    const parsed = await parseIngredientTextWithAI(product.rawIngredientText);
+    if (parsed.ingredients.length > ingredients.length) ingredients = parsed.ingredients;
+  }
+
+  return analyseIngredients(ingredients, profile);
+}
+
 export default function ProfileScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [skinProfile, setSkinProfile] = useState<SkinProfile | null>(null);
@@ -76,12 +90,27 @@ export default function ProfileScreen() {
         getScanHistory(),
         getDiscoverFeed(),
       ]);
-      const seen = new Set(history.map((scan) => scan.productId).filter(Boolean));
+      const discoverById = new Map(discover.map((product) => [product.id, product]));
+      const updatedHistory = await Promise.all(history.map(async (scan) => {
+        if (!scan.productId) return scan;
+
+        const product = discoverById.get(scan.productId) ?? await getProductById(scan.productId);
+        if (!product) return scan;
+
+        const analysis = await analyseProductScore(product, profile);
+        return {
+          ...scan,
+          productName: product.name,
+          score: analysis.score,
+          warnings: analysis.warnings,
+        };
+      }));
+      const seen = new Set(updatedHistory.map((scan) => scan.productId).filter(Boolean));
       const fillers = makeSampleScans(discover, profile).filter((scan) => scan.productId && !seen.has(scan.productId));
 
       setUser(currentUser);
       setSkinProfile(profile);
-      setScanHistory([...history, ...fillers].slice(0, 5));
+      setScanHistory([...updatedHistory, ...fillers].slice(0, 5));
     } catch (error) {
       console.warn("[profile]", error);
     } finally {
@@ -143,10 +172,8 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <Screen scroll={false}>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={isDark ? colors.cloud : colors.navy} />
-        </View>
+      <Screen>
+        <ProfileSkeleton />
       </Screen>
     );
   }
@@ -156,7 +183,12 @@ export default function ProfileScreen() {
       <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
         <View className="items-center">
           <View className="h-20 w-20 items-center justify-center rounded-full bg-periwinkle-soft dark:bg-darkSurfaceSoft">
-            <UserIcon size={38} color={colors.navy} />
+            <Image
+              source={logoSource}
+              className="h-16 w-16"
+              resizeMode="contain"
+              style={isDark ? styles.darkLogoImage : undefined}
+            />
           </View>
           <Text className="mt-4 text-2xl font-extrabold text-navy dark:text-cloud">{user?.name ?? "Derma User"}</Text>
           <Text className="mt-1 text-sm text-muted dark:text-darkMuted">{user?.email ?? ""}</Text>
@@ -334,6 +366,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 34,
     maxHeight: "92%",
     overflow: "hidden",
+  },
+  darkLogoImage: {
+    tintColor: colors.cloud,
   },
   modalBackdrop: {
     backgroundColor: "rgba(0,0,0,0.44)",

@@ -20,7 +20,12 @@ export function Button({ children, onPress, disabled, loading, variant = "brand"
       {loading ? <ActivityIndicator color={variant === "brand" || isDark ? "#FFFCF5" : "#374375"} /> : null}
       <Text
         className={`text-base font-bold ${variant === "brand" ? "text-cloud" : "text-navy dark:text-cloud"}`}
-        style={[styles.text, variant === "brand" ? styles.brandText : styles.altText, isDark && variant !== "brand" && styles.darkText]}
+        style={[
+          styles.text,
+          variant === "brand" ? styles.brandText : styles.altText,
+          isDark && variant !== "brand" && styles.darkText,
+          isDark && variant === "outline" && styles.darkOutlineText,
+        ]}
       >
         {children}
       </Text>
@@ -89,10 +94,16 @@ const styles = StyleSheet.create({
   },
   darkOutlineBg: {
     backgroundColor: colors.darkSurface,
-    borderColor: colors.darkBorder,
+    borderColor: colors.periwinkle,
+    borderWidth: 1.5,
   },
   darkSoftBg: {
-    backgroundColor: colors.darkSurfaceSoft,
+    backgroundColor: colors.darkSurface,
+    borderColor: colors.darkBorder,
+    borderWidth: 1,
+  },
+  darkOutlineText: {
+    color: colors.cloud,
   },
   darkText: {
     color: colors.cloud,

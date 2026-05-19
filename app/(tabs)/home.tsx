@@ -8,7 +8,6 @@ import {
   Moon,
   Plus,
   Search,
-  Sparkles,
   Sun,
   X,
 } from "lucide-react-native";
@@ -26,8 +25,15 @@ import {
   View,
 } from "react-native";
 import { Screen } from "@/components/Screen";
+import { useAppTheme } from "@/components/AppThemeProvider";
+import { HomeSkeleton } from "@/components/Skeleton";
 import { colors } from "@/constants/theme";
-import { analyseIngredients, resolveIngredientIds } from "@/lib/analysisEngine";
+import {
+  analyseIngredients,
+  cleanIngredientName,
+  parseIngredientTextWithAI,
+  resolveIngredientIds,
+} from "@/lib/analysisEngine";
 import { getCurrentUser } from "@/services/auth";
 import { enrichAliasesFromHuggingFace } from "@/services/ingredients";
 import { getSkinProfile } from "@/services/profile";
@@ -35,6 +41,8 @@ import { getProductById, getDiscoverFeed, getSavedProducts, saveProduct, searchP
 import { addToRoutine } from "@/services/routine";
 import { getScanHistory } from "@/services/scans";
 import type { AnalysisResult, Product, ScanHistoryItem, SkinProfile, User } from "@/types/domain";
+
+const logoSource = require("@/assets/images/dermascan-logo.png");
 
 type EnrichedScan = ScanHistoryItem & {
   sampleProduct?: Product;
@@ -73,6 +81,22 @@ function warningTypeLabel(type: string) {
   return "Ingredient Warning";
 }
 
+const UPPERCASE_INGREDIENT_WORDS = new Set(["AHA", "BHA", "BHT", "CI", "DNA", "EDTA", "PEG", "PPG", "PCA", "UV", "VP"]);
+
+function formatIngredientLabel(name: string) {
+  return cleanIngredientName(name)
+    .split(" ")
+    .map((word) => word
+      .split("-")
+      .map((part) => {
+        const upper = part.toUpperCase();
+        if (UPPERCASE_INGREDIENT_WORDS.has(upper) || /^\d+$/.test(part)) return upper;
+        return part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part;
+      })
+      .join("-"))
+    .join(" ");
+}
+
 function makeSampleScans(products: Product[], profile: SkinProfile | null): EnrichedScan[] {
   return products.slice(0, 5).map((product, index) => {
     const ingredients = resolveIngredientIds(product.ingredientIds);
@@ -93,7 +117,24 @@ function makeSampleScans(products: Product[], profile: SkinProfile | null): Enri
   });
 }
 
+async function analyseProductForProfile(
+  product: Product,
+  profile: SkinProfile | null
+): Promise<AnalysisResult> {
+  let ingredients = resolveIngredientIds(product.ingredientIds);
+
+  if (product.rawIngredientText && (ingredients.length === 0 || ingredients.length < product.ingredientIds.length)) {
+    const parsed = await parseIngredientTextWithAI(product.rawIngredientText);
+    if (parsed.ingredients.length > ingredients.length) {
+      ingredients = parsed.ingredients;
+    }
+  }
+
+  return analyseIngredients(ingredients, profile);
+}
+
 export default function HomeScreen() {
+  const { isDark } = useAppTheme();
   const [user, setUser] = useState<User | null>(null);
   const [recentScans, setRecentScans] = useState<EnrichedScan[]>([]);
   const [discoverProducts, setDiscoverProducts] = useState<Product[]>([]);
@@ -125,12 +166,29 @@ export default function HomeScreen() {
         getSavedProducts(),
       ]);
       const samples = makeSampleScans(discover, skinProfile);
-      const seenProductIds = new Set(scans.map((scan) => scan.productId).filter(Boolean));
+      const discoverById = new Map(discover.map((product) => [product.id, product]));
+      const enrichedScans = await Promise.all(scans.map(async (scan): Promise<EnrichedScan> => {
+        if (!scan.productId) return scan;
+
+        const product = discoverById.get(scan.productId) ?? await getProductById(scan.productId);
+        if (!product) return scan;
+
+        const analysis = await analyseProductForProfile(product, skinProfile);
+        return {
+          ...scan,
+          productName: product.name,
+          score: analysis.score,
+          warnings: analysis.warnings,
+          sampleProduct: product,
+          sampleAnalysis: analysis,
+        };
+      }));
+      const seenProductIds = new Set(enrichedScans.map((scan) => scan.productId).filter(Boolean));
       const fillers = samples.filter((scan) => scan.productId && !seenProductIds.has(scan.productId));
 
       setUser(currentUser);
       setProfile(skinProfile);
-      setRecentScans([...scans, ...fillers].slice(0, Math.max(scans.length, 5)));
+      setRecentScans([...enrichedScans, ...fillers].slice(0, Math.max(enrichedScans.length, 5)));
       setDiscoverProducts(discover.slice(0, 12));
       setSavedProductIds(new Set(savedProducts.map((product) => product.id)));
       enrichAliasesFromHuggingFace().catch(() => {});
@@ -203,7 +261,7 @@ export default function HomeScreen() {
     try {
       const product = scan.sampleProduct ?? (scan.productId ? await getProductById(scan.productId) : null);
       const analysis = scan.sampleAnalysis ?? (product
-        ? analyseIngredients(resolveIngredientIds(product.ingredientIds), profile)
+        ? await analyseProductForProfile(product, profile)
         : {
             score: scan.score ?? 100,
             warnings: scan.warnings ?? [],
@@ -221,8 +279,8 @@ export default function HomeScreen() {
     }
   }, [profile, savedProductIds]);
 
-  const openProductDetail = useCallback((product: Product) => {
-    const analysis = analyseIngredients(resolveIngredientIds(product.ingredientIds), profile);
+  const openProductDetail = useCallback(async (product: Product) => {
+    const analysis = await analyseProductForProfile(product, profile);
     const scan: EnrichedScan = {
       id: `discover-${product.id}`,
       productId: product.id,
@@ -237,6 +295,21 @@ export default function HomeScreen() {
 
     openScanDetail(scan);
   }, [openScanDetail, profile]);
+
+  useEffect(() => {
+    if (!selectedScan || !detailProduct) return;
+
+    let active = true;
+    analyseProductForProfile(detailProduct, profile)
+      .then((analysis) => {
+        if (active) setDetailAnalysis(analysis);
+      })
+      .catch((error) => console.warn("[home detail profile refresh]", error));
+
+    return () => {
+      active = false;
+    };
+  }, [detailProduct, profile, selectedScan]);
 
   const closeDetail = () => {
     setSelectedScan(null);
@@ -275,10 +348,8 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <Screen scroll={false}>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={colors.navy} />
-        </View>
+      <Screen>
+        <HomeSkeleton />
       </Screen>
     );
   }
@@ -286,7 +357,11 @@ export default function HomeScreen() {
   const detailTone = scoreTone(detailAnalysis?.score ?? selectedScan?.score);
   const detailWarnings = detailAnalysis?.warnings ?? selectedScan?.warnings ?? [];
   const detectedIngredients = detailAnalysis?.detectedIngredients ?? [];
-  const flaggedNames = new Set(detailWarnings.flatMap((warning) => warning.ingredientNames ?? []));
+  const flaggedNames = new Set(
+    detailWarnings
+      .flatMap((warning) => warning.ingredientNames ?? [])
+      .map((name) => cleanIngredientName(name).toLowerCase())
+  );
 
   return (
     <>
@@ -335,7 +410,12 @@ export default function HomeScreen() {
                     />
                   ) : (
                     <View className="h-20 items-center justify-center rounded-2xl bg-peach-soft dark:bg-darkSurfaceSoft">
-                      <Sparkles size={28} color={colors.maroon} />
+                      <Image
+                        source={logoSource}
+                        className="h-16 w-16"
+                        resizeMode="contain"
+                        style={isDark ? styles.darkLogoImage : undefined}
+                      />
                     </View>
                   )}
                   <Text className="mt-4 text-xs font-bold text-muted dark:text-darkMuted">
@@ -469,7 +549,7 @@ export default function HomeScreen() {
                                 <View className="mt-4 flex-row flex-wrap gap-2">
                                   {warning.ingredientNames.map((name) => (
                                     <View key={name} className="rounded-full bg-cloud px-4 py-2 dark:bg-darkSurfaceSoft">
-                                      <Text className="text-sm font-bold text-navy dark:text-cloud">{name}</Text>
+                                      <Text className="text-sm font-bold text-navy dark:text-cloud">{formatIngredientLabel(name)}</Text>
                                     </View>
                                   ))}
                                 </View>
@@ -491,7 +571,8 @@ export default function HomeScreen() {
 
                     <View className="mt-4 flex-row flex-wrap gap-2">
                       {detectedIngredients.slice(0, ingredientsOpen ? detectedIngredients.length : 4).map((ingredient) => {
-                        const flagged = flaggedNames.has(ingredient.name);
+                        const ingredientName = formatIngredientLabel(ingredient.name);
+                        const flagged = flaggedNames.has(cleanIngredientName(ingredient.name).toLowerCase());
                         return (
                           <View
                             key={ingredient.id}
@@ -499,7 +580,7 @@ export default function HomeScreen() {
                             style={{ backgroundColor: flagged ? "#F4D7F4" : colors.periwinkleSoft }}
                           >
                             <Text className="text-sm font-extrabold" style={{ color: flagged ? colors.maroon : colors.navy }}>
-                              {flagged ? "Flagged " : ""}{ingredient.name}
+                              {flagged ? "Flagged " : ""}{ingredientName}
                             </Text>
                           </View>
                         );
@@ -593,6 +674,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 34,
     maxHeight: "92%",
     overflow: "hidden",
+  },
+  darkLogoImage: {
+    tintColor: colors.cloud,
   },
   modalBackdrop: {
     backgroundColor: "rgba(0,0,0,0.42)",

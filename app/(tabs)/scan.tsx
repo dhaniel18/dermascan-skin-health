@@ -25,7 +25,12 @@ import {
 import { Button } from "@/components/Button";
 import { Screen } from "@/components/Screen";
 import { colors } from "@/constants/theme";
-import { scanAndAnalyse, analyseFromOcrText, saveOcrScannedProduct } from "@/services/products";
+import {
+  scanAndAnalyse,
+  analyseFromOcrText,
+  saveOcrScannedProduct,
+  createPendingBarcodeProduct,
+} from "@/services/products";
 import { extractIngredientsFromPhoto } from "@/services/ocr";
 import { recordScan } from "@/services/scans";
 import type { AnalysisResult, Product } from "@/types/domain";
@@ -78,6 +83,9 @@ export default function ScanScreen() {
   const [productNameDraft, setProductNameDraft] = useState("");
   const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null);
   const [capturedOcrPhotoUri, setCapturedOcrPhotoUri] = useState<string | null>(null);
+  const [isBarcodeProductModalVisible, setIsBarcodeProductModalVisible] = useState(false);
+  const [isSavingBarcodeProduct, setIsSavingBarcodeProduct] = useState(false);
+  const [pendingBarcodeProduct, setPendingBarcodeProduct] = useState<{ barcode: string; name: string } | null>(null);
   const cameraRef = useRef<CameraViewType>(null);
 
   const isIdle = state.status === "idle";
@@ -137,6 +145,7 @@ export default function ScanScreen() {
       const ingredientIds = analysis.detectedIngredients.map((ingredient) => ingredient.id);
       const savedProduct = await saveOcrScannedProduct({
         name: requestedProductName,
+        barcode: pendingBarcodeProduct?.barcode,
         rawIngredientText: ocr.rawText || ocr.ingredients.join(", "),
         ingredientIds,
       });
@@ -163,12 +172,38 @@ export default function ScanScreen() {
         analysis,
         aiResearched,
       });
+      setPendingBarcodeProduct(null);
       setCapturedPhotoUri(null);
       setCapturedOcrPhotoUri(null);
     } catch (e: unknown) {
       setState({ status: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, []);
+  }, [pendingBarcodeProduct]);
+
+  const handleSaveMissingBarcodeProduct = useCallback(async () => {
+    if (state.status !== "notFound") return;
+
+    const cleanName = productNameDraft.trim();
+    if (!cleanName) return;
+
+    setIsSavingBarcodeProduct(true);
+    try {
+      await createPendingBarcodeProduct({
+        barcode: state.barcode,
+        name: cleanName,
+      });
+      setPendingBarcodeProduct({ barcode: state.barcode, name: cleanName });
+      setIsBarcodeProductModalVisible(false);
+      setCapturedPhotoUri(null);
+      setCapturedOcrPhotoUri(null);
+      setState({ status: "idle" });
+      setMode("ocr");
+    } catch (e: unknown) {
+      setState({ status: "error", message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setIsSavingBarcodeProduct(false);
+    }
+  }, [productNameDraft, state]);
 
   const handleCaptureForOcr = useCallback(async () => {
     if (!cameraRef.current || !isIdle) return;
@@ -185,14 +220,20 @@ export default function ScanScreen() {
 
       const textBlockUri = await cropToTextBlock(photo);
       setCapturedPhotoUri(textBlockUri);
-      setCapturedOcrPhotoUri(photo.uri);
+      setCapturedOcrPhotoUri(textBlockUri);
+
+      if (pendingBarcodeProduct) {
+        await handleProcessFrozenOcr(pendingBarcodeProduct.name, textBlockUri);
+        return;
+      }
+
       setProductNameDraft("");
       setState({ status: "idle" });
       setIsNameModalVisible(true);
     } catch (e: unknown) {
       setState({ status: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, [isIdle]);
+  }, [handleProcessFrozenOcr, isIdle, pendingBarcodeProduct]);
 
   const handlePromptForProductName = () => {
     if (!isIdle) return;
@@ -212,6 +253,8 @@ export default function ScanScreen() {
     setProductNameDraft("");
     setCapturedPhotoUri(null);
     setCapturedOcrPhotoUri(null);
+    setPendingBarcodeProduct(null);
+    setIsBarcodeProductModalVisible(false);
   };
 
   // ── Result screen ─────────────────────────────────────────
@@ -314,7 +357,74 @@ export default function ScanScreen() {
         >
           📷 Scan Ingredient Label Instead
         </Button>
+        <Button
+          variant="soft"
+          className="mt-3"
+          onPress={() => {
+            setProductNameDraft("");
+            setIsBarcodeProductModalVisible(true);
+          }}
+        >
+          Save Product to Database
+        </Button>
         <Button variant="outline" className="mt-3" onPress={reset}>Try Barcode Again</Button>
+
+        <Modal
+          visible={isBarcodeProductModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setIsBarcodeProductModalVisible(false);
+            setProductNameDraft("");
+          }}
+        >
+          <View className="flex-1 justify-end bg-black/45 px-6 pb-8">
+            <View className="rounded-3xl bg-card p-5 dark:bg-darkSurface">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-lg font-extrabold text-navy dark:text-cloud">Save product</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setIsBarcodeProductModalVisible(false);
+                    setProductNameDraft("");
+                  }}
+                  className="h-9 w-9 items-center justify-center rounded-full bg-periwinkle-soft dark:bg-darkSurfaceSoft"
+                >
+                  <X size={18} color={colors.muted} />
+                </TouchableOpacity>
+              </View>
+              <Text className="mt-2 text-sm text-muted dark:text-darkMuted">
+                Enter the product name for barcode {state.barcode}, then scan the ingredient label to complete it.
+              </Text>
+              <TextInput
+                value={productNameDraft}
+                onChangeText={setProductNameDraft}
+                placeholder="Example: Skintific 5X Ceramide Moisturizer"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="words"
+                className="mt-4 rounded-2xl border border-border bg-cloud px-4 py-3 text-base font-semibold text-navy dark:border-darkBorder dark:bg-darkSurfaceSoft dark:text-cloud"
+              />
+              <Button
+                className="mt-4"
+                onPress={handleSaveMissingBarcodeProduct}
+                disabled={!productNameDraft.trim()}
+                loading={isSavingBarcodeProduct}
+              >
+                Save and Scan Ingredients
+              </Button>
+              <Button
+                variant="outline"
+                className="mt-3"
+                onPress={() => {
+                  setIsBarcodeProductModalVisible(false);
+                  setProductNameDraft("");
+                }}
+              >
+                Cancel
+              </Button>
+            </View>
+          </View>
+        </Modal>
       </Screen>
     );
   }

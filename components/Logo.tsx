@@ -1,15 +1,16 @@
-import { ScanLine } from "lucide-react-native";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { colors } from "@/constants/theme";
+
+const logoSource = require("@/assets/images/dermascan-logo.png");
 
 export function Logo() {
   const { isDark } = useAppTheme();
 
   return (
     <View className="items-center gap-4" style={styles.container}>
-      <View className="h-24 w-24 items-center justify-center rounded-[32px] bg-periwinkle-soft dark:bg-darkSurface" style={[styles.mark, isDark && styles.darkMark]}>
-        <ScanLine size={44} color={isDark ? colors.cloud : colors.navy} strokeWidth={2.6} />
+      <View className="h-28 w-28 items-center justify-center rounded-[34px] bg-card dark:bg-darkSurface" style={[styles.mark, isDark && styles.darkMark]}>
+        <Image source={logoSource} style={[styles.logoImage, isDark && styles.darkLogoImage]} resizeMode="contain" />
       </View>
       <View className="items-center" style={styles.textWrap}>
         <Text className="text-5xl font-extrabold text-navy dark:text-cloud" style={[styles.title, isDark && styles.darkText]}>
@@ -30,6 +31,7 @@ const styles = StyleSheet.create({
   },
   darkMark: {
     backgroundColor: colors.darkSurface,
+    borderColor: colors.darkBorder,
   },
   darkMuted: {
     color: colors.darkMuted,
@@ -39,11 +41,20 @@ const styles = StyleSheet.create({
   },
   mark: {
     alignItems: "center",
-    backgroundColor: colors.periwinkleSoft,
-    borderRadius: 32,
-    height: 96,
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 34,
+    borderWidth: 1.5,
+    height: 112,
     justifyContent: "center",
-    width: 96,
+    width: 112,
+  },
+  logoImage: {
+    height: 104,
+    width: 104,
+  },
+  darkLogoImage: {
+    tintColor: colors.cloud,
   },
   subtitle: {
     color: colors.muted,

@@ -3,6 +3,7 @@ import { useFocusEffect } from "expo-router";
 import { ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { Bookmark, Check } from "lucide-react-native";
 import { Screen } from "@/components/Screen";
+import { SkeletonBlock } from "@/components/Skeleton";
 import { colors } from "@/constants/theme";
 import { getSavedProducts, toggleSaveProduct } from "@/services/products";
 import { getUserRoutine } from "@/services/routine";
@@ -52,10 +53,12 @@ export default function SavedScreen() {
   };
 
   if (loading) return (
-    <Screen scroll={false}>
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color={colors.navy} />
-      </View>
+    <Screen>
+      <SkeletonBlock width="64%" height={40} radius={16} />
+      <SkeletonBlock width="82%" height={20} radius={10} className="mt-3" />
+      <SkeletonBlock height={118} radius={24} className="mt-8" />
+      <SkeletonBlock height={118} radius={24} className="mt-5" />
+      <SkeletonBlock height={118} radius={24} className="mt-5" />
     </Screen>
   );
 
