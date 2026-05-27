@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { ReactNode } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import type { ScrollViewProps } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "@/components/AppThemeProvider";
@@ -20,22 +20,29 @@ export function Screen({ children, scroll = true, padded = true, refreshControl 
   return (
     <LinearGradient colors={isDark ? ["#20284F", "#2F3867"] : ["#FFFCF5", "#F3F4FB"]} className="flex-1" style={styles.fill}>
       <SafeAreaView className="flex-1" style={styles.fill}>
-        {scroll ? (
-          <ScrollView
-            className="flex-1"
-            style={styles.fill}
-            contentContainerClassName={`${padded ? "px-6 pt-4" : ""} pb-8`}
-            contentContainerStyle={[padded && styles.paddedContent, { paddingBottom: bottomPadding }]}
-            showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
-          >
-            {children}
-          </ScrollView>
-        ) : (
-          <View className={`flex-1 ${padded ? "px-6 pt-4" : ""}`} style={[styles.fill, padded && styles.paddedView]}>
-            {children}
-          </View>
-        )}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          className="flex-1"
+          style={styles.fill}
+        >
+          {scroll ? (
+            <ScrollView
+              className="flex-1"
+              style={styles.fill}
+              contentContainerClassName={`${padded ? "px-6 pt-4" : ""} pb-8`}
+              contentContainerStyle={[padded && styles.paddedContent, { paddingBottom: bottomPadding }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              refreshControl={refreshControl}
+            >
+              {children}
+            </ScrollView>
+          ) : (
+            <View className={`flex-1 ${padded ? "px-6 pt-4" : ""}`} style={[styles.fill, padded && styles.paddedView]}>
+              {children}
+            </View>
+          )}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </LinearGradient>
   );

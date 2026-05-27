@@ -1,18 +1,24 @@
 import { useCallback, useRef, useMemo, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { ActivityIndicator, Animated, Easing, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { CheckCircle2, Moon, Pencil, Sun, Trash2, XCircle } from "lucide-react-native";
+import { ActivityIndicator, Alert, Animated, Easing, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { CheckCircle2, Moon, Pencil, Plus, Sparkles, Sun, Trash2, XCircle } from "lucide-react-native";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { Screen } from "@/components/Screen";
 import { SkeletonBlock } from "@/components/Skeleton";
 import { colors } from "@/constants/theme";
 import { addToRoutine, checkRoutineCompatibility, getUserRoutine, removeFromRoutine } from "@/services/routine";
+import { getLayeringRecommendations, type RoutineRecommendation } from "@/services/routineRecommendations";
 import type { RoutineCompatibilityResult, RoutineProduct } from "@/types/domain";
 
 const SEVERITY_COLOR = { High: "#C0392B", Medium: "#E67E22", Low: "#E1A83E" } as const;
 
 function routineLabel(timeOfDay: RoutineProduct["timeOfDay"]) {
   if (timeOfDay === "any") return "Both";
+  return timeOfDay === "morning" ? "Morning" : "Evening";
+}
+
+function recommendationTimingLabel(timeOfDay: RoutineProduct["timeOfDay"]) {
+  if (timeOfDay === "any") return "Flexible";
   return timeOfDay === "morning" ? "Morning" : "Evening";
 }
 
@@ -72,17 +78,24 @@ export default function LayeringScreen() {
   const { isDark } = useAppTheme();
   const [routine, setRoutine] = useState<RoutineProduct[]>([]);
   const [compat, setCompat] = useState<RoutineCompatibilityResult | null>(null);
+  const [recommendations, setRecommendations] = useState<RoutineRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editingRoutine, setEditingRoutine] = useState<RoutineProduct | null>(null);
   const [removingRoutine, setRemovingRoutine] = useState<RoutineProduct | null>(null);
   const [routineBusy, setRoutineBusy] = useState(false);
+  const [addingRecommendationId, setAddingRecommendationId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [r, c] = await Promise.all([getUserRoutine(), checkRoutineCompatibility()]);
+      const [r, c] = await Promise.all([
+        getUserRoutine(),
+        checkRoutineCompatibility(),
+      ]);
+      const recs = r.length === 0 ? await getLayeringRecommendations() : [];
       setRoutine(r);
       setCompat(c);
+      setRecommendations(recs);
     } catch (e) {
       console.warn("[layering]", e);
     } finally {
@@ -111,6 +124,18 @@ export default function LayeringScreen() {
       await load();
     } finally {
       setRoutineBusy(false);
+    }
+  };
+
+  const addRecommendationToRoutine = async (recommendation: RoutineRecommendation) => {
+    setAddingRecommendationId(recommendation.productId);
+    try {
+      await addToRoutine(recommendation.productId, recommendation.suggestedTimeOfDay);
+      await load();
+    } catch (error) {
+      Alert.alert("Add failed", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setAddingRecommendationId(null);
     }
   };
 
@@ -156,7 +181,7 @@ export default function LayeringScreen() {
 
       {products.length === 0 ? (
         <Text className="mt-5 text-sm font-semibold text-muted dark:text-darkMuted">
-          Add products from Recent Scans to build this routine.
+          Add products from recommendations or Recent Scans to build this routine.
         </Text>
       ) : (
         <View className="mt-4 gap-3">
@@ -199,6 +224,63 @@ export default function LayeringScreen() {
     </View>
   );
 
+  const renderRecommendations = () => {
+    if (routine.length > 0 || recommendations.length === 0) return null;
+
+    return (
+      <View className="mt-5 rounded-3xl bg-card p-5 dark:bg-darkSurface" style={styles.panel}>
+        <View className="flex-row items-center gap-3">
+          <Sparkles size={23} color={colors.maroon} />
+          <Text className="flex-1 text-xl font-extrabold text-navy dark:text-cloud">Layering Recommendations</Text>
+        </View>
+        <Text className="mt-3 text-sm leading-5 text-muted dark:text-darkMuted">
+          Starter products picked from your skin type and skin conditions.
+        </Text>
+
+        <View className="mt-4 gap-3">
+          {recommendations.map((recommendation) => {
+            const adding = addingRecommendationId === recommendation.productId;
+            return (
+              <View
+                key={recommendation.productId}
+                className="rounded-3xl bg-cloud p-4 dark:bg-darkSurfaceSoft"
+                style={styles.recommendationItem}
+              >
+                <View className="flex-row items-start">
+                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-periwinkle-soft dark:bg-darkSurface">
+                    <Text className="text-sm font-extrabold text-navy dark:text-cloud">{recommendation.score}</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base font-extrabold text-navy dark:text-cloud" numberOfLines={2}>
+                      {recommendation.productName}
+                    </Text>
+                    <Text className="mt-1 text-xs font-semibold text-muted dark:text-darkMuted" numberOfLines={1}>
+                      {recommendation.brand ?? recommendation.category ?? "Skincare"} - {recommendationTimingLabel(recommendation.suggestedTimeOfDay)}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text className="mt-3 text-sm leading-5 text-muted dark:text-darkMuted">
+                  {recommendation.reason}
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={adding}
+                  onPress={() => addRecommendationToRoutine(recommendation)}
+                  className="mt-4 h-11 flex-row items-center justify-center gap-2 rounded-2xl bg-maroon disabled:opacity-50"
+                >
+                  {adding ? <ActivityIndicator color={colors.cloud} /> : <Plus size={19} color={colors.cloud} />}
+                  <Text className="font-extrabold text-cloud">Add to Routine</Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <>
       <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
@@ -207,10 +289,11 @@ export default function LayeringScreen() {
           Check if your morning & evening routines are compatible.
         </Text>
 
+        {renderRecommendations()}
         {renderRoutineSection("Morning Routine", morningRoutine, Sun, colors.warning)}
         {renderRoutineSection("Evening Routine", eveningRoutine, Moon, isDark ? colors.cloud : colors.navy)}
 
-        {compat && (
+        {compat && routine.length > 0 && (
           <View className="mt-5 rounded-3xl bg-card p-5 dark:bg-darkSurface" style={styles.panel}>
             <Text className="text-xl font-extrabold text-navy dark:text-cloud">Compatibility Check</Text>
             <Text className="mt-4 text-base text-muted dark:text-darkMuted">
@@ -246,7 +329,7 @@ export default function LayeringScreen() {
           </View>
         )}
 
-        {compat && compat.morningOrder.length > 0 && (
+        {compat && routine.length > 0 && compat.morningOrder.length > 0 && (
           <View className="mt-5 rounded-3xl bg-card p-5 dark:bg-darkSurface" style={styles.panel}>
             <View className="flex-row items-center gap-3">
               <Sun size={22} color={colors.warning} />
@@ -267,7 +350,7 @@ export default function LayeringScreen() {
           </View>
         )}
 
-        {compat && compat.eveningOrder.length > 0 && (
+        {compat && routine.length > 0 && compat.eveningOrder.length > 0 && (
           <View className="mt-5 rounded-3xl bg-card p-5 dark:bg-darkSurface" style={styles.panel}>
             <View className="flex-row items-center gap-3">
               <Moon size={22} color={isDark ? colors.cloud : colors.navy} />
@@ -388,6 +471,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.05,
     shadowRadius: 14,
+    elevation: 1,
+  },
+  recommendationItem: {
+    shadowColor: "#374375",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
     elevation: 1,
   },
   warningText: {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   AlertTriangle,
   Bookmark,
@@ -135,6 +136,7 @@ async function analyseProductForProfile(
 
 export default function HomeScreen() {
   const { isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
   const [recentScans, setRecentScans] = useState<EnrichedScan[]>([]);
   const [discoverProducts, setDiscoverProducts] = useState<Product[]>([]);
@@ -393,6 +395,7 @@ export default function HomeScreen() {
           ) : (
             <ScrollView
               horizontal
+              keyboardShouldPersistTaps="handled"
               showsHorizontalScrollIndicator={false}
               contentContainerClassName="mt-4 gap-4 pr-6"
             >
@@ -505,7 +508,11 @@ export default function HomeScreen() {
               </Pressable>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailContent}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[styles.detailContent, { paddingBottom: 40 + Math.max(insets.bottom, 16) }]}
+            >
               {detailLoading ? (
                 <View className="items-center justify-center py-14">
                   <ActivityIndicator color={colors.navy} />

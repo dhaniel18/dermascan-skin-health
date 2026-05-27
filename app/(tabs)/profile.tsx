@@ -4,7 +4,9 @@ import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,6 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { Screen } from "@/components/Screen";
 import { ProfileSkeleton } from "@/components/Skeleton";
@@ -69,6 +72,7 @@ async function analyseProductScore(product: Product, profile: SkinProfile | null
 }
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState<User | null>(null);
   const [skinProfile, setSkinProfile] = useState<SkinProfile | null>(null);
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
@@ -264,7 +268,10 @@ export default function ProfileScreen() {
       </Screen>
 
       <Modal visible={editing} transparent animationType="slide" onRequestClose={() => setEditing(false)}>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.modalBackdrop}
+        >
           <View className="bg-cloud dark:bg-darkBackground" style={styles.editSheet}>
             <View className="flex-row items-center justify-between border-b border-border px-6 pb-5 pt-6 dark:border-darkBorder">
               <Text className="text-3xl font-extrabold text-navy dark:text-cloud">Edit Profile</Text>
@@ -273,7 +280,11 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
 
-            <ScrollView contentContainerStyle={styles.editContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              contentContainerStyle={[styles.editContent, { paddingBottom: 44 + Math.max(insets.bottom, 16) }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text className="text-xl font-extrabold text-navy dark:text-cloud">Display Name</Text>
               <TextInput
                 value={draftName}
@@ -331,7 +342,7 @@ export default function ProfileScreen() {
               </Pressable>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );

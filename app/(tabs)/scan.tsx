@@ -19,9 +19,10 @@ import {
 } from "lucide-react-native";
 import { useRef, useState, useCallback } from "react";
 import {
-  ActivityIndicator, Image, Modal, StyleSheet,
+  ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Screen } from "@/components/Screen";
 import { colors } from "@/constants/theme";
@@ -76,6 +77,7 @@ async function cropToTextBlock(photo: { uri: string; width?: number; height?: nu
 }
 
 export default function ScanScreen() {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [state, setState] = useState<ScanState>({ status: "idle" });
   const [mode, setMode] = useState<CameraMode>("barcode");
@@ -378,7 +380,10 @@ export default function ScanScreen() {
             setProductNameDraft("");
           }}
         >
-          <View className="flex-1 justify-end bg-black/45 px-6 pb-8">
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={[styles.modalKeyboard, { paddingBottom: 24 + insets.bottom }]}
+          >
             <View className="rounded-3xl bg-card p-5 dark:bg-darkSurface">
               <View className="flex-row items-center justify-between">
                 <Text className="text-lg font-extrabold text-navy dark:text-cloud">Save product</Text>
@@ -423,7 +428,7 @@ export default function ScanScreen() {
                 Cancel
               </Button>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </Screen>
     );
@@ -607,7 +612,10 @@ export default function ScanScreen() {
             setCapturedOcrPhotoUri(null);
           }}
         >
-          <View className="flex-1 justify-end bg-black/45 px-6 pb-8">
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={[styles.modalKeyboard, { paddingBottom: 24 + insets.bottom }]}
+          >
             <View className="rounded-3xl bg-card p-5 dark:bg-darkSurface">
               <View className="flex-row items-center justify-between">
                 <Text className="text-lg font-extrabold text-navy dark:text-cloud">Product name</Text>
@@ -638,7 +646,7 @@ export default function ScanScreen() {
                 Continue Scan
               </Button>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
       </View>
@@ -671,5 +679,11 @@ const styles = StyleSheet.create({
   ocrBox: {
     width: "90%",
     height: "65%",
+  },
+  modalKeyboard: {
+    backgroundColor: "rgba(0,0,0,0.45)",
+    flex: 1,
+    justifyContent: "flex-end",
+    paddingHorizontal: 24,
   },
 });
