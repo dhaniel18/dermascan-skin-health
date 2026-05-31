@@ -27,6 +27,7 @@ function truncateName(name: string) {
 }
 
 function RoutineCheckButton() {
+  const { isDark } = useAppTheme();
   const [checked, setChecked] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
 
@@ -51,11 +52,11 @@ function RoutineCheckButton() {
 
   const backgroundColor = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [colors.periwinkleSoft, "#EAF6EF"],
+    outputRange: [isDark ? "rgba(255, 252, 245, 0.92)" : colors.periwinkleSoft, "#EAF6EF"],
   });
   const borderColor = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: ["#D8DBEC", colors.success],
+    outputRange: [isDark ? "rgba(255, 252, 245, 0.82)" : "#D8DBEC", colors.success],
   });
   const scale = progress.interpolate({
     inputRange: [0, 0.55, 1],
@@ -68,7 +69,7 @@ function RoutineCheckButton() {
         className="h-10 w-10 items-center justify-center rounded-2xl"
         style={[styles.checkButton, { backgroundColor, borderColor, transform: [{ scale }] }]}
       >
-        <CheckCircle2 size={22} color={checked ? colors.success : colors.muted} strokeWidth={2.6} />
+        <CheckCircle2 size={22} color={checked ? colors.success : (isDark ? colors.navy : colors.muted)} strokeWidth={2.6} />
       </Animated.View>
     </Pressable>
   );
@@ -204,15 +205,17 @@ export default function LayeringScreen() {
               </View>
               <Pressable
                 onPress={() => setEditingRoutine(product)}
-                className="h-10 w-10 items-center justify-center rounded-2xl bg-periwinkle-soft dark:bg-darkSurface"
+                className="h-10 w-10 items-center justify-center rounded-2xl"
+                style={[styles.routineActionButton, isDark ? styles.routineEditButtonDark : styles.routineEditButton]}
               >
-                <Pencil size={18} color={colors.navy} />
+                <Pencil size={18} color={colors.navy} strokeWidth={2.5} />
               </Pressable>
               <Pressable
                 onPress={() => setRemovingRoutine(product)}
-                className="ml-1.5 h-10 w-10 items-center justify-center rounded-2xl bg-maroon-soft dark:bg-darkSurface"
+                className="ml-1.5 h-10 w-10 items-center justify-center rounded-2xl"
+                style={[styles.routineActionButton, isDark ? styles.routineDeleteButtonDark : styles.routineDeleteButton]}
               >
-                <Trash2 size={18} color={colors.maroon} />
+                <Trash2 size={18} color={colors.maroon} strokeWidth={2.5} />
               </Pressable>
               <View className="ml-1.5">
                 <RoutineCheckButton />
@@ -441,7 +444,11 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   checkButton: {
-    borderWidth: 1.5,
+    borderWidth: 2,
+    shadowColor: colors.cloud,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
   },
   confirmBackdrop: {
     alignItems: "center",
@@ -472,6 +479,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 14,
     elevation: 1,
+  },
+  routineActionButton: {
+    borderWidth: 1.5,
+    shadowColor: colors.cloud,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+  },
+  routineEditButton: {
+    backgroundColor: colors.periwinkleSoft,
+    borderColor: colors.border,
+  },
+  routineEditButtonDark: {
+    backgroundColor: "rgba(255, 252, 245, 0.92)",
+    borderColor: "rgba(255, 252, 245, 0.78)",
+  },
+  routineDeleteButton: {
+    backgroundColor: colors.maroonSoft,
+    borderColor: "#E0BDC3",
+  },
+  routineDeleteButtonDark: {
+    backgroundColor: colors.peachSoft,
+    borderColor: "rgba(255, 252, 245, 0.78)",
   },
   recommendationItem: {
     shadowColor: "#374375",

@@ -19,7 +19,7 @@ import {
 } from "lucide-react-native";
 import { useRef, useState, useCallback } from "react";
 import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, StyleSheet,
+  ActivityIndicator, Image, KeyboardAvoidingView, type LayoutChangeEvent, Modal, Platform, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,6 +46,7 @@ const OCR_CROP = {
   width: 0.8,
   height: 0.66,
 };
+const CAMERA_FRAME_RATIO = 3 / 4;
 
 type CameraMode = "barcode" | "ocr";
 
@@ -88,11 +89,32 @@ export default function ScanScreen() {
   const [isBarcodeProductModalVisible, setIsBarcodeProductModalVisible] = useState(false);
   const [isSavingBarcodeProduct, setIsSavingBarcodeProduct] = useState(false);
   const [pendingBarcodeProduct, setPendingBarcodeProduct] = useState<{ barcode: string; name: string } | null>(null);
+  const [cameraFrameSize, setCameraFrameSize] = useState<{ width: number; height: number } | null>(null);
   const cameraRef = useRef<CameraViewType>(null);
 
   const isIdle = state.status === "idle";
   const isLoading = state.status === "loading";
   const isCapturing = state.status === "capturing";
+
+  const handleCameraAreaLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    if (width <= 0 || height <= 0) return;
+
+    const nextWidth = Math.min(width, height * CAMERA_FRAME_RATIO);
+    const nextHeight = nextWidth / CAMERA_FRAME_RATIO;
+
+    setCameraFrameSize((current) => {
+      if (
+        current &&
+        Math.abs(current.width - nextWidth) < 1 &&
+        Math.abs(current.height - nextHeight) < 1
+      ) {
+        return current;
+      }
+
+      return { width: nextWidth, height: nextHeight };
+    });
+  }, []);
 
   // ── Barcode handler ───────────────────────────────────────
   const handleBarcode = useCallback(async ({ data }: BarcodeScanningResult) => {
@@ -475,8 +497,8 @@ export default function ScanScreen() {
           </View>
 
           {/* Camera frame */}
-          <View className="mt-5 flex-1 justify-center">
-            <View style={styles.frame} className="w-full self-center overflow-hidden rounded-3xl border border-cloud/20 bg-black">
+          <View className="mt-4 flex-1 justify-center" onLayout={handleCameraAreaLayout}>
+            <View style={[styles.frame, cameraFrameSize]} className="self-center overflow-hidden rounded-3xl border border-cloud/20 bg-black">
 
               {/* Loading overlay */}
               {(isLoading || isCapturing) && (
@@ -511,6 +533,7 @@ export default function ScanScreen() {
                       ref={cameraRef}
                       style={styles.camera}
                       facing="back"
+                      ratio="4:3"
                       barcodeScannerSettings={
                         mode === "barcode"
                           ? { barcodeTypes: BARCODE_TYPES }
@@ -655,12 +678,17 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  frame: { aspectRatio: 3 / 4 },
+  frame: {
+    aspectRatio: CAMERA_FRAME_RATIO,
+    width: "100%",
+  },
   camera: {
     position: "absolute",
-    top: 0, bottom: 0,
-    left: "-18%",
-    width: "136%",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: "100%",
     height: "100%",
   },
   cameraPreview: {

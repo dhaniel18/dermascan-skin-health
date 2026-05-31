@@ -249,12 +249,19 @@ export default function ProfileScreen() {
             <Settings size={22} color={isDark ? colors.peach : colors.navy} />
             <Text className="text-2xl font-extrabold text-navy dark:text-cloud">Preferences</Text>
           </View>
-          <Pressable onPress={toggleTheme} className="flex-row items-center border-b border-border pb-5 dark:border-darkBorder">
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: isDark }}
+            onPress={toggleTheme}
+            className="flex-row items-center border-b border-border pb-5 dark:border-darkBorder"
+          >
             <Moon size={24} color={isDark ? colors.cloud : colors.navy} />
             <Text className="ml-4 flex-1 text-lg font-semibold text-navy dark:text-cloud">
               {isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             </Text>
-            <ChevronRight size={22} color={colors.muted} />
+            <View style={[styles.themeSwitchTrack, isDark ? styles.themeSwitchTrackOn : styles.themeSwitchTrackOff]}>
+              <View style={[styles.themeSwitchKnob, isDark ? styles.themeSwitchKnobOn : styles.themeSwitchKnobOff]} />
+            </View>
           </Pressable>
         </View>
 
@@ -385,5 +392,35 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.44)",
     flex: 1,
     justifyContent: "flex-end",
+  },
+  themeSwitchKnob: {
+    backgroundColor: colors.card,
+    borderRadius: 13,
+    height: 26,
+    shadowColor: "#374375",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    width: 26,
+    elevation: 3,
+  },
+  themeSwitchKnobOff: {
+    transform: [{ translateX: 0 }],
+  },
+  themeSwitchKnobOn: {
+    transform: [{ translateX: 24 }],
+  },
+  themeSwitchTrack: {
+    borderRadius: 16,
+    height: 32,
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    width: 56,
+  },
+  themeSwitchTrackOff: {
+    backgroundColor: colors.periwinkleSoft,
+  },
+  themeSwitchTrackOn: {
+    backgroundColor: colors.maroon,
   },
 });

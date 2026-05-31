@@ -488,7 +488,18 @@ export default function HomeScreen() {
         )}
       </Screen>
 
-      <Modal visible={Boolean(selectedScan)} transparent animationType="slide" onRequestClose={closeDetail}>
+      <Modal
+        visible={Boolean(selectedScan)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (routinePickerOpen) {
+            setRoutinePickerOpen(false);
+            return;
+          }
+          closeDetail();
+        }}
+      >
         <View style={styles.modalBackdrop}>
           <View className="bg-cloud dark:bg-darkBackground" style={styles.detailSheet}>
             <View className="flex-row items-start justify-between border-b border-border px-6 pb-5 pt-6 dark:border-darkBorder">
@@ -502,9 +513,10 @@ export default function HomeScreen() {
               </View>
               <Pressable
                 onPress={closeDetail}
-                className="h-12 w-12 items-center justify-center rounded-full bg-periwinkle-soft dark:bg-darkSurfaceSoft"
+                className="h-12 w-12 items-center justify-center rounded-full"
+                style={[styles.detailCloseButton, isDark && styles.detailCloseButtonDark]}
               >
-                <X size={26} color={colors.navy} />
+                <X size={26} color={isDark ? colors.navy : colors.muted} strokeWidth={2.6} />
               </Pressable>
             </View>
 
@@ -624,49 +636,62 @@ export default function HomeScreen() {
                 </>
               )}
             </ScrollView>
+
+            {routinePickerOpen ? (
+              <Pressable style={styles.routineOverlay} onPress={() => setRoutinePickerOpen(false)}>
+                <Pressable
+                  className="rounded-3xl bg-neutral-900 p-6"
+                  style={styles.actionSheet}
+                  onPress={(event) => event.stopPropagation()}
+                >
+                  <Text className="text-2xl font-extrabold text-cloud">Add to Routine</Text>
+                  <Text className="mt-3 text-lg font-semibold text-cloud/70">When do you use this product?</Text>
+
+                  <View className="mt-6 gap-3">
+                    <Pressable
+                      disabled={addingRoutine}
+                      onPress={() => handleAddRoutine("morning")}
+                      className="h-16 flex-row items-center justify-center gap-3 rounded-full bg-white/15 disabled:opacity-50"
+                    >
+                      <Sun size={28} color={colors.warning} />
+                      <Text className="text-2xl font-bold text-cloud">Morning</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={addingRoutine}
+                      onPress={() => handleAddRoutine("evening")}
+                      className="h-16 flex-row items-center justify-center gap-3 rounded-full bg-white/15 disabled:opacity-50"
+                    >
+                      <Moon size={28} color={colors.periwinkle} />
+                      <Text className="text-2xl font-bold text-cloud">Evening</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={addingRoutine}
+                      onPress={() => handleAddRoutine("any")}
+                      className="h-16 flex-row items-center justify-center gap-3 rounded-full bg-white/15 disabled:opacity-50"
+                    >
+                      <Sun size={26} color={colors.warning} />
+                      <Moon size={26} color={colors.periwinkle} />
+                      <Text className="text-2xl font-bold text-cloud">Both</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={addingRoutine}
+                      onPress={() => setRoutinePickerOpen(false)}
+                      className="h-16 items-center justify-center rounded-full bg-white/15 disabled:opacity-50"
+                    >
+                      <Text className="text-2xl font-bold text-cloud">Cancel</Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+              </Pressable>
+            ) : null}
           </View>
         </View>
-      </Modal>
-
-      <Modal visible={routinePickerOpen} transparent animationType="fade" onRequestClose={() => setRoutinePickerOpen(false)}>
-        <Pressable style={styles.actionBackdrop} onPress={() => setRoutinePickerOpen(false)}>
-          <Pressable className="rounded-3xl bg-neutral-900 p-6" style={styles.actionSheet}>
-            <Text className="text-2xl font-extrabold text-cloud">Add to Routine</Text>
-            <Text className="mt-3 text-lg font-semibold text-cloud/70">When do you use this product?</Text>
-
-            <View className="mt-6 gap-3">
-              <Pressable onPress={() => handleAddRoutine("morning")} className="h-16 flex-row items-center justify-center gap-3 rounded-full bg-white/15">
-                <Sun size={28} color={colors.warning} />
-                <Text className="text-2xl font-bold text-cloud">Morning</Text>
-              </Pressable>
-              <Pressable onPress={() => handleAddRoutine("evening")} className="h-16 flex-row items-center justify-center gap-3 rounded-full bg-white/15">
-                <Moon size={28} color={colors.periwinkle} />
-                <Text className="text-2xl font-bold text-cloud">Evening</Text>
-              </Pressable>
-              <Pressable onPress={() => handleAddRoutine("any")} className="h-16 flex-row items-center justify-center gap-3 rounded-full bg-white/15">
-                <Sun size={26} color={colors.warning} />
-                <Moon size={26} color={colors.periwinkle} />
-                <Text className="text-2xl font-bold text-cloud">Both</Text>
-              </Pressable>
-              <Pressable onPress={() => setRoutinePickerOpen(false)} className="h-16 items-center justify-center rounded-full bg-white/15">
-                <Text className="text-2xl font-bold text-cloud">Cancel</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
       </Modal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  actionBackdrop: {
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.54)",
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 34,
-  },
   actionSheet: {
     maxWidth: 420,
     width: "100%",
@@ -675,6 +700,20 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 24,
     paddingTop: 24,
+  },
+  detailCloseButton: {
+    backgroundColor: colors.periwinkleSoft,
+    borderColor: colors.border,
+    borderWidth: 1,
+  },
+  detailCloseButtonDark: {
+    backgroundColor: "rgba(255, 252, 245, 0.92)",
+    borderColor: "rgba(255, 252, 245, 0.82)",
+    borderWidth: 1.5,
+    shadowColor: colors.cloud,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
   },
   detailSheet: {
     borderTopLeftRadius: 34,
@@ -703,5 +742,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 18,
     elevation: 2,
+  },
+  routineOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.48)",
+    justifyContent: "center",
+    paddingHorizontal: 34,
+    zIndex: 20,
   },
 });
