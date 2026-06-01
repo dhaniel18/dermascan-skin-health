@@ -10,6 +10,7 @@ import { BackButton } from "@/components/BackButton";
 import { signUp } from "@/services/auth";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { colors } from "@/constants/theme";
+import { PrivacyPolicyModal } from "@/components/PrivacyPolicyModal";
 
 export default function CreateAccountScreen() {
   const { isDark } = useAppTheme();
@@ -18,6 +19,7 @@ export default function CreateAccountScreen() {
   const [password, setPassword] = useState("");
   const [agree, setAgree] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [privacyVisible, setPrivacyVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
@@ -92,7 +94,14 @@ export default function CreateAccountScreen() {
                 >
                   Terms & Conditions
                 </Text>
-                {" "}and consent that my scanned skin data may be anonymized and used for the public.
+                {", "}read the{" "}
+                <Text
+                  onPress={() => setPrivacyVisible(true)}
+                  className="font-semibold text-maroon dark:text-peach underline"
+                >
+                  Privacy Policy
+                </Text>
+                , and consent that my scanned skin data may be anonymized and used for the public.
               </Text>
             </View>
           </View>
@@ -159,6 +168,11 @@ export default function CreateAccountScreen() {
           </View>
         </View>
       </Modal>
+
+      <PrivacyPolicyModal
+        visible={privacyVisible}
+        onClose={() => setPrivacyVisible(false)}
+      />
     </Screen>
   );
 }

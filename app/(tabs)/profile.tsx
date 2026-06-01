@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "@/components/AppThemeProvider";
 import { Screen } from "@/components/Screen";
+import { PrivacyPolicyModal } from "@/components/PrivacyPolicyModal";
 import { ProfileSkeleton } from "@/components/Skeleton";
 import { skinConditions, skinConcerns, skinTypes } from "@/constants/options";
 import { colors } from "@/constants/theme";
@@ -69,6 +70,7 @@ export default function ProfileScreen() {
   const [draftSkinType, setDraftSkinType] = useState<string | null>(null);
   const [draftConditions, setDraftConditions] = useState<string[]>([]);
   const [draftConcerns, setDraftConcerns] = useState<string[]>([]);
+  const [privacyVisible, setPrivacyVisible] = useState(false);
   const { isDark, toggleTheme } = useAppTheme();
 
   const load = useCallback(async () => {
@@ -246,6 +248,17 @@ export default function ProfileScreen() {
               <View style={[styles.themeSwitchKnob, isDark ? styles.themeSwitchKnobOn : styles.themeSwitchKnobOff]} />
             </View>
           </Pressable>
+
+          <Pressable
+            onPress={() => setPrivacyVisible(true)}
+            className="flex-row items-center pt-5"
+          >
+            <ShieldCheck size={24} color={isDark ? colors.cloud : colors.navy} />
+            <Text className="ml-4 flex-1 text-lg font-semibold text-navy dark:text-cloud">
+              Privacy Policy
+            </Text>
+            <ChevronRight size={20} color={isDark ? colors.cloud : colors.navy} />
+          </Pressable>
         </View>
 
         <Pressable
@@ -334,6 +347,11 @@ export default function ProfileScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <PrivacyPolicyModal
+        visible={privacyVisible}
+        onClose={() => setPrivacyVisible(false)}
+      />
     </>
   );
 }
