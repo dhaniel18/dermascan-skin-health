@@ -124,7 +124,7 @@ export function PrivacyPolicyModal({ visible, onClose }: PrivacyPolicyModalProps
             <Text className="text-base font-extrabold text-navy dark:text-cloud mb-2">8. Contact Details</Text>
             <Text className="text-sm text-muted dark:text-darkMuted mb-4 leading-5">
               For any questions regarding your data settings, feel free to email:{"\n"}
-              **Email:** wisnulintang111@gmail.com
+              Email: wisnulintang111@gmail.com
             </Text>
           </ScrollView>
 
