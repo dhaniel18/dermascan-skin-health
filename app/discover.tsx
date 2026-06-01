@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  ArrowLeft,
   AlertTriangle,
   Bookmark,
   CheckCircle2,
@@ -15,19 +16,19 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   Modal,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  ScrollView,
 } from "react-native";
 import { Screen } from "@/components/Screen";
 import { useAppTheme } from "@/components/AppThemeProvider";
-import { HomeSkeleton } from "@/components/Skeleton";
 import { colors } from "@/constants/theme";
 import {
   analyseIngredients,
@@ -35,37 +36,19 @@ import {
   parseIngredientTextWithAI,
   resolveIngredientIds,
 } from "@/lib/analysisEngine";
-import { getCurrentUser } from "@/services/auth";
-import { enrichAliasesFromHuggingFace } from "@/services/ingredients";
 import { getSkinProfile } from "@/services/profile";
-import { getProductById, getDiscoverFeed, getSavedProducts, saveProduct, searchProducts } from "@/services/products";
+import {
+  getProductById,
+  getSavedProducts,
+  saveProduct,
+  queryDiscoverProducts,
+} from "@/services/products";
 import { addToRoutine } from "@/services/routine";
-import { getScanHistory } from "@/services/scans";
-import type { AnalysisResult, Product, ScanHistoryItem, SkinProfile, User } from "@/types/domain";
+import type { AnalysisResult, Product, SkinProfile } from "@/types/domain";
 
 const logoSource = require("@/assets/images/dermascan-logo.png");
 
-type EnrichedScan = ScanHistoryItem & {
-  sampleProduct?: Product;
-  sampleAnalysis?: AnalysisResult;
-};
-
-const skincareTips = [
-  { title: "Introduce actives one at a time.", body: "Give your skin a few days before adding another serum so reactions are easier to spot." },
-  { title: "Patch-test new products first.", body: "Try a small amount near your jaw or behind your ear before using it on your whole face." },
-  { title: "Use sunscreen every morning.", body: "Daily SPF helps protect your barrier and keeps brightening ingredients working properly." },
-  { title: "Keep retinoids for nighttime.", body: "Retinoids can make skin more sensitive, so pair them with moisturizer and morning sunscreen." },
-  { title: "Do not over-exfoliate.", body: "AHAs, BHAs, and scrubs can irritate when layered too often in the same week." },
-  { title: "Hydrate before sealing.", body: "Apply humectants before heavier creams so water-binding ingredients have something to hold." },
-  { title: "Fragrance can be tricky.", body: "If your skin is reactive, watch fragrance and essential oils on ingredient labels." },
-  { title: "Keep routines simple during flare-ups.", body: "Cleanser, moisturizer, and sunscreen are often enough while your barrier calms down." },
-  { title: "Separate strong actives.", body: "Avoid stacking too many acids, retinoids, or benzoyl peroxide in one routine." },
-  { title: "Consistency beats quantity.", body: "A small routine used regularly is easier to evaluate than changing many products at once." },
-];
-
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(date));
-}
+const categories = ["All", "Cleanser", "Toner", "Serum", "Moisturizer", "Sunscreen", "Others"];
 
 function scoreTone(score?: number) {
   if (score === undefined) return { label: "Unknown", color: colors.muted, bg: colors.periwinkleSoft };
@@ -98,8 +81,6 @@ function formatIngredientLabel(name: string) {
     .join(" ");
 }
 
-
-
 async function analyseProductForProfile(
   product: Product,
   profile: SkinProfile | null
@@ -116,22 +97,28 @@ async function analyseProductForProfile(
   return analyseIngredients(ingredients, profile);
 }
 
-export default function HomeScreen() {
+export default function DiscoverScreen() {
   const router = useRouter();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const [user, setUser] = useState<User | null>(null);
-  const [recentScans, setRecentScans] = useState<EnrichedScan[]>([]);
-  const [discoverProducts, setDiscoverProducts] = useState<Product[]>([]);
-  const [searchedProducts, setSearchedProducts] = useState<Product[]>([]);
-  const [savedProductIds, setSavedProductIds] = useState<Set<string>>(() => new Set());
-  const [discoverQuery, setDiscoverQuery] = useState("");
-  const [profile, setProfile] = useState<SkinProfile | null>(null);
-  const [tip] = useState(() => skincareTips[Math.floor(Math.random() * skincareTips.length)]);
+
+  // Scopes and pagination state
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedScan, setSelectedScan] = useState<EnrichedScan | null>(null);
-  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const LIMIT = 12;
+
+  // Profile and saved products cache
+  const [profile, setProfile] = useState<SkinProfile | null>(null);
+  const [savedProductIds, setSavedProductIds] = useState<Set<string>>(() => new Set());
+
+  // Detail Modal state
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [detailAnalysis, setDetailAnalysis] = useState<AnalysisResult | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [ingredientsOpen, setIngredientsOpen] = useState(false);
@@ -139,173 +126,119 @@ export default function HomeScreen() {
   const [saving, setSaving] = useState(false);
   const [detailSaved, setDetailSaved] = useState(false);
   const [addingRoutine, setAddingRoutine] = useState(false);
-  const [searchingDiscover, setSearchingDiscover] = useState(false);
 
-  const load = useCallback(async () => {
+  // Load profile and saved items
+  const loadCaches = useCallback(async () => {
     try {
-      const [currentUser, scans, discover, skinProfile, savedProducts] = await Promise.all([
-        getCurrentUser(),
-        getScanHistory(),
-        getDiscoverFeed(),
+      const [skinProfile, savedProducts] = await Promise.all([
         getSkinProfile(),
         getSavedProducts(),
       ]);
-      const discoverById = new Map(discover.map((product) => [product.id, product]));
-      const enrichedScans = await Promise.all(scans.map(async (scan): Promise<EnrichedScan> => {
-        if (!scan.productId) return scan;
-
-        const product = discoverById.get(scan.productId) ?? await getProductById(scan.productId);
-        if (!product) return scan;
-
-        const analysis = await analyseProductForProfile(product, skinProfile);
-        return {
-          ...scan,
-          productName: product.name,
-          score: analysis.score,
-          warnings: analysis.warnings,
-          sampleProduct: product,
-          sampleAnalysis: analysis,
-        };
-      }));
-
-      setUser(currentUser);
       setProfile(skinProfile);
-      setRecentScans(enrichedScans.slice(0, 5));
-      setDiscoverProducts(discover.slice(0, 12));
-      setSavedProductIds(new Set(savedProducts.map((product) => product.id)));
-      enrichAliasesFromHuggingFace().catch(() => {});
-    } catch (error) {
-      console.warn("[home]", error);
+      setSavedProductIds(new Set(savedProducts.map((p) => p.id)));
+    } catch (e) {
+      console.warn("[discover caches]", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCaches();
+  }, [loadCaches]);
+
+  // Load products helper
+  const loadProducts = useCallback(async (currentOffset: number, category: string, search: string = "", isRefresh: boolean = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else if (currentOffset === 0) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const data = await queryDiscoverProducts({
+        category,
+        search,
+        limit: LIMIT,
+        offset: currentOffset,
+      });
+
+      if (data.length < LIMIT) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
+
+      setProducts((prev) => {
+        const combined = isRefresh || currentOffset === 0 ? data : [...prev, ...data];
+        const seen = new Set<string>();
+        return combined.filter((p) => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
+      });
+      setOffset(currentOffset + data.length);
+    } catch (err) {
+      console.warn("[discover load]", err);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
   useEffect(() => {
-    const query = discoverQuery.trim();
-    let cancelled = false;
+    setOffset(0);
+    setProducts([]);
+    setHasMore(true);
+    setLoading(true);
 
-    if (!query) {
-      setSearchedProducts([]);
-      setSearchingDiscover(false);
-      return;
-    }
+    const delayDebounceFn = setTimeout(() => {
+      loadProducts(0, selectedCategory, searchQuery);
+    }, 300);
 
-    setSearchingDiscover(true);
-    const timeout = setTimeout(() => {
-      searchProducts(query)
-        .then((products) => {
-          if (!cancelled) setSearchedProducts(products);
-        })
-        .catch((error) => {
-          console.warn("[home discover search]", error);
-          if (!cancelled) setSearchedProducts([]);
-        })
-        .finally(() => {
-          if (!cancelled) setSearchingDiscover(false);
-        });
-    }, 250);
+    return () => clearTimeout(delayDebounceFn);
+  }, [selectedCategory, searchQuery, loadProducts]);
 
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-    };
-  }, [discoverQuery]);
+  const handleRefresh = () => {
+    setOffset(0);
+    setHasMore(true);
+    loadCaches();
+    loadProducts(0, selectedCategory, searchQuery, true);
+  };
 
-  const filteredDiscover = useMemo(() => {
-    const query = discoverQuery.trim().toLowerCase();
-    if (!query) return discoverProducts.slice(0, 6);
-    if (searchedProducts.length > 0) return searchedProducts.slice(0, 8);
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMore || loading || refreshing) return;
+    loadProducts(offset, selectedCategory, searchQuery);
+  };
 
-    return discoverProducts.filter((product) => {
-      const haystack = [
-        product.name,
-        product.brand,
-        product.category,
-        product.rawIngredientText,
-      ].filter(Boolean).join(" ").toLowerCase();
-
-      return haystack.includes(query);
-    }).slice(0, 6);
-  }, [discoverProducts, discoverQuery, searchedProducts]);
-
-  const openScanDetail = useCallback(async (scan: EnrichedScan) => {
-    setSelectedScan(scan);
-    setDetailProduct(scan.sampleProduct ?? null);
-    setDetailAnalysis(scan.sampleAnalysis ?? null);
-    setDetailSaved(scan.productId ? savedProductIds.has(scan.productId) : false);
+  // Open details
+  const openProductDetail = async (product: Product) => {
+    setSelectedProduct(product);
+    setDetailAnalysis(null);
+    setDetailSaved(savedProductIds.has(product.id));
     setIngredientsOpen(false);
     setDetailLoading(true);
 
     try {
-      const product = scan.sampleProduct ?? (scan.productId ? await getProductById(scan.productId) : null);
-      const analysis = scan.sampleAnalysis ?? (product
-        ? await analyseProductForProfile(product, profile)
-        : {
-            score: scan.score ?? 100,
-            warnings: scan.warnings ?? [],
-            detectedIngredients: [],
-            safeIngredients: [],
-          });
-
-      setDetailProduct(product);
+      const fullProduct = await getProductById(product.id);
+      const analysis = await analyseProductForProfile(fullProduct ?? product, profile);
       setDetailAnalysis(analysis);
-      setDetailSaved(product ? savedProductIds.has(product.id) : false);
+      setDetailSaved(savedProductIds.has(product.id));
     } catch (error) {
-      console.warn("[home detail]", error);
+      console.warn("[discover details]", error);
     } finally {
       setDetailLoading(false);
     }
-  }, [profile, savedProductIds]);
-
-  const openProductDetail = useCallback(async (product: Product) => {
-    const analysis = await analyseProductForProfile(product, profile);
-    const scan: EnrichedScan = {
-      id: `discover-${product.id}`,
-      productId: product.id,
-      productName: product.name,
-      scanMethod: "manual",
-      score: analysis.score,
-      warnings: analysis.warnings,
-      scannedAt: new Date().toISOString(),
-      sampleProduct: product,
-      sampleAnalysis: analysis,
-    };
-
-    openScanDetail(scan);
-  }, [openScanDetail, profile]);
-
-  useEffect(() => {
-    if (!selectedScan || !detailProduct) return;
-
-    let active = true;
-    analyseProductForProfile(detailProduct, profile)
-      .then((analysis) => {
-        if (active) setDetailAnalysis(analysis);
-      })
-      .catch((error) => console.warn("[home detail profile refresh]", error));
-
-    return () => {
-      active = false;
-    };
-  }, [detailProduct, profile, selectedScan]);
-
-  const closeDetail = () => {
-    setSelectedScan(null);
-    setDetailProduct(null);
-    setDetailAnalysis(null);
-    setRoutinePickerOpen(false);
   };
 
   const handleSaveProduct = async () => {
-    if (!detailProduct) return;
+    if (!selectedProduct) return;
     setSaving(true);
     try {
-      await saveProduct(detailProduct.id);
-      setSavedProductIds((current) => new Set(current).add(detailProduct.id));
+      await saveProduct(selectedProduct.id);
+      setSavedProductIds((current) => new Set(current).add(selectedProduct.id));
       setDetailSaved(true);
     } catch (error) {
       Alert.alert("Save failed", error instanceof Error ? error.message : "Please try again.");
@@ -315,10 +248,10 @@ export default function HomeScreen() {
   };
 
   const handleAddRoutine = async (timeOfDay: "morning" | "evening" | "any") => {
-    if (!detailProduct) return;
+    if (!selectedProduct) return;
     setAddingRoutine(true);
     try {
-      await addToRoutine(detailProduct.id, timeOfDay);
+      await addToRoutine(selectedProduct.id, timeOfDay);
       setRoutinePickerOpen(false);
       Alert.alert("Added", "Product added to your layering routine.");
     } catch (error) {
@@ -328,16 +261,14 @@ export default function HomeScreen() {
     }
   };
 
-  if (loading) {
-    return (
-      <Screen>
-        <HomeSkeleton />
-      </Screen>
-    );
-  }
+  const closeDetail = () => {
+    setSelectedProduct(null);
+    setDetailAnalysis(null);
+    setRoutinePickerOpen(false);
+  };
 
-  const detailTone = scoreTone(detailAnalysis?.score ?? selectedScan?.score);
-  const detailWarnings = detailAnalysis?.warnings ?? selectedScan?.warnings ?? [];
+  const detailTone = scoreTone(detailAnalysis?.score);
+  const detailWarnings = detailAnalysis?.warnings ?? [];
   const detectedIngredients = detailAnalysis?.detectedIngredients ?? [];
   const flaggedNames = new Set(
     detailWarnings
@@ -347,150 +278,162 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
-        <Text className="text-3xl font-extrabold text-navy dark:text-cloud">
-          {user ? `Hi, ${user.name.split(" ")[0]}` : "Welcome to DermaScan"}
-        </Text>
-        <Text className="mt-1 text-base text-muted dark:text-darkMuted">Your skin-safe ingredient checker.</Text>
+      <Screen scroll={false}>
+        {/* Header */}
+        <View className="flex-row items-center pt-4 mb-4">
+          <Pressable
+            onPress={() => router.back()}
+            className="mr-4 p-2 rounded-full bg-card dark:bg-darkSurface"
+          >
+            <ArrowLeft size={24} color={isDark ? colors.cloud : colors.navy} />
+          </Pressable>
+          <Text className="text-3xl font-extrabold text-navy dark:text-cloud">
+            Discover Skincare
+          </Text>
+        </View>
 
-        <View className="mt-7">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-lg font-bold text-navy dark:text-cloud">Discover</Text>
-            <Pressable onPress={() => router.push("/discover")} className="py-1">
-              <Text className="text-sm font-bold text-maroon dark:text-cloud">See All</Text>
+        {/* Search Bar */}
+        <View className="flex-row items-center px-4 h-14 rounded-2xl bg-card dark:bg-darkSurface border border-border dark:border-darkBorder mb-4 gap-3">
+          <Search size={22} color={isDark ? colors.cloud : colors.muted} />
+          <TextInput
+            className="flex-1 text-base font-bold text-navy dark:text-cloud"
+            placeholder="Search products by name..."
+            placeholderTextColor={isDark ? "rgba(255,255,255,0.4)" : "rgba(55,67,117,0.4)"}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery !== "" ? (
+            <Pressable onPress={() => setSearchQuery("")} className="p-1 rounded-full bg-border/20 dark:bg-darkBorder/40">
+              <X size={16} color={isDark ? colors.cloud : colors.navy} />
             </Pressable>
-          </View>
-          <View className="mt-3 flex-row items-center rounded-3xl bg-card px-4 py-3 dark:bg-darkSurface">
-            <Search size={22} color={colors.muted} />
-            <TextInput
-              value={discoverQuery}
-              onChangeText={setDiscoverQuery}
-              placeholder="Search scanned skincare or ingredients"
-              placeholderTextColor={colors.muted}
-              className="ml-3 flex-1 text-base font-semibold text-navy dark:text-cloud"
-            />
-          </View>
-
-          {searchingDiscover ? (
-            <View className="mt-4 items-start">
-              <ActivityIndicator color={colors.navy} />
-            </View>
-          ) : filteredDiscover.length === 0 ? (
-            <Text className="mt-3 text-sm text-muted dark:text-darkMuted">No shared scans found yet.</Text>
-          ) : (
-            <ScrollView
-              horizontal
-              keyboardShouldPersistTaps="handled"
-              showsHorizontalScrollIndicator={false}
-              contentContainerClassName="mt-4 gap-4 pr-6"
-            >
-              {filteredDiscover.map((product) => {
-                const ingredients = resolveIngredientIds(product.ingredientIds);
-                const analysis = analyseIngredients(ingredients, profile);
-                const tone = scoreTone(analysis.score);
-                
-                return (
-                  <Pressable
-                    key={product.id}
-                    onPress={() => openProductDetail(product)}
-                    className="w-40 rounded-3xl bg-card p-4 dark:bg-darkSurface relative"
-                  >
-                    <View className="relative">
-                      {product.image ? (
-                        <Image
-                          source={{ uri: product.image }}
-                          className="h-20 rounded-2xl bg-peach-soft dark:bg-darkSurfaceSoft"
-                          resizeMode="contain"
-                        />
-                      ) : (
-                        <View className="h-20 items-center justify-center rounded-2xl bg-peach-soft dark:bg-darkSurfaceSoft">
-                          <Image
-                            source={logoSource}
-                            className="h-16 w-16"
-                            resizeMode="contain"
-                            style={isDark ? styles.darkLogoImage : undefined}
-                          />
-                        </View>
-                      )}
-                      <View 
-                        className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full" 
-                        style={{ backgroundColor: tone.bg, borderColor: tone.color, borderWidth: 0.5 }}
-                      >
-                        <Text className="text-[10px] font-extrabold" style={{ color: tone.color }}>
-                          {analysis.score}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text className="mt-4 text-xs font-bold text-muted dark:text-darkMuted">
-                      {product.brand ?? product.category ?? "Shared Scan"}
-                    </Text>
-                    <Text className="mt-1 min-h-10 text-base font-extrabold text-navy dark:text-cloud" numberOfLines={2}>
-                      {product.name}
-                    </Text>
-                    <Text className="mt-3 text-xs font-semibold text-muted dark:text-darkMuted">
-                      {product.ingredientIds.length} ingredients
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
+          ) : null}
         </View>
 
-        <View className="mt-7 rounded-3xl bg-navy p-5 dark:bg-darkSurfaceSoft">
-          <Text className="text-sm font-bold text-cloud/80">Tip of the Day</Text>
-          <Text className="mt-3 text-lg font-extrabold text-cloud">{tip.title}</Text>
-          <Text className="mt-3 text-sm leading-5 text-cloud/80">{tip.body}</Text>
-        </View>
-
-        <View className="mt-7">
-          <Text className="text-lg font-bold text-navy dark:text-cloud">Recent Scans</Text>
-          <Text className="mt-1 text-xs font-semibold text-muted dark:text-darkMuted">Tap a scan to see full details</Text>
-        </View>
-        {recentScans.length === 0 ? (
-          <Text className="mt-3 text-sm text-muted dark:text-darkMuted">No scans yet. Tap the Scan tab to get started.</Text>
-        ) : (
-          <View className="mt-3 gap-4">
-            {recentScans.map((scan) => {
-              const tone = scoreTone(scan.score);
-              const warningCount = scan.warnings?.length ?? 0;
+        {/* Horizontal Category List */}
+        <View className="mb-4">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerClassName="gap-3 py-1 pr-6"
+          >
+            {categories.map((cat) => {
+              const active = selectedCategory === cat;
               return (
                 <Pressable
-                  key={scan.id}
-                  onPress={() => openScanDetail(scan)}
-                  className="flex-row items-center justify-between rounded-2xl bg-card px-4 py-4 dark:bg-darkSurface"
-                  style={styles.recentCard}
+                  key={cat}
+                  onPress={() => setSelectedCategory(cat)}
+                  className={`px-5 py-2.5 rounded-full border ${active
+                      ? "bg-maroon border-maroon dark:bg-maroon dark:border-maroon"
+                      : "bg-card border-border dark:bg-darkSurface dark:border-darkBorder"
+                    }`}
                 >
-                  <View className="mr-4 flex-1">
-                    <Text className="text-base font-extrabold text-navy dark:text-cloud" numberOfLines={1}>
-                      {scan.productName}
-                    </Text>
-                    <Text className="mt-1 text-xs font-semibold text-muted dark:text-darkMuted">
-                      {formatDate(scan.scannedAt)}
-                    </Text>
-                    {warningCount > 0 ? (
-                      <Text className="mt-2 text-xs font-bold" style={{ color: "#E67E22" }}>
-                        {warningCount} warning{warningCount > 1 ? "s" : ""} - tap to view
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View className="items-end">
-                    <Text className="text-2xl font-extrabold" style={{ color: tone.color }}>
-                      {scan.score ?? "--"}
-                    </Text>
-                    <Text className="mt-3 text-xs font-bold" style={{ color: tone.color }}>
-                      {tone.label}
-                    </Text>
-                  </View>
+                  <Text
+                    className={`text-sm font-bold ${active ? "text-cloud" : "text-navy dark:text-cloud"
+                      }`}
+                  >
+                    {cat}
+                  </Text>
                 </Pressable>
               );
             })}
+          </ScrollView>
+        </View>
+
+        {/* Products Grid */}
+        {loading && offset === 0 ? (
+          <View className="flex-1 items-center justify-center py-20">
+            <ActivityIndicator color={colors.navy} size="large" />
           </View>
+        ) : products.length === 0 ? (
+          <View className="flex-1 items-center justify-center py-20 px-6">
+            <Text className="text-lg font-bold text-navy dark:text-cloud text-center">
+              No products found
+            </Text>
+            <Text className="mt-2 text-sm text-muted dark:text-darkMuted text-center">
+              There are no shared scans under this category yet.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={products}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            }
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              loadingMore ? (
+                <View className="py-4 items-center justify-center">
+                  <ActivityIndicator color={colors.navy} />
+                </View>
+              ) : null
+            }
+            renderItem={({ item }) => {
+              const ingredients = resolveIngredientIds(item.ingredientIds);
+              const analysis = analyseIngredients(ingredients, profile);
+              const tone = scoreTone(analysis.score);
+
+              return (
+                <Pressable
+                  onPress={() => openProductDetail(item)}
+                  className="flex-1 rounded-3xl bg-card p-4 dark:bg-darkSurface relative"
+                  style={styles.productCard}
+                >
+                  <View className="relative">
+                    {item.image ? (
+                      <Image
+                        source={{ uri: item.image }}
+                        className="h-28 rounded-2xl bg-peach-soft dark:bg-darkSurfaceSoft"
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View className="h-28 items-center justify-center rounded-2xl bg-peach-soft dark:bg-darkSurfaceSoft">
+                        <Image
+                          source={logoSource}
+                          className="h-20 w-20"
+                          resizeMode="contain"
+                          style={isDark ? styles.darkLogoImage : undefined}
+                        />
+                      </View>
+                    )}
+                    <View
+                      className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: tone.bg, borderColor: tone.color, borderWidth: 0.5 }}
+                    >
+                      <Text className="text-xs font-extrabold" style={{ color: tone.color }}>
+                        {analysis.score}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text className="mt-4 text-xs font-bold text-muted dark:text-darkMuted">
+                    {item.brand ?? item.category ?? "Shared Scan"}
+                  </Text>
+                  <Text
+                    className="mt-1 min-h-10 text-base font-extrabold text-navy dark:text-cloud"
+                    numberOfLines={2}
+                  >
+                    {item.name}
+                  </Text>
+                  <Text className="mt-3 text-xs font-semibold text-muted dark:text-darkMuted">
+                    {item.ingredientIds?.length ?? 0} ingredients
+                  </Text>
+                </Pressable>
+              );
+            }}
+          />
         )}
       </Screen>
 
+      {/* Product Detail Modal */}
       <Modal
-        visible={Boolean(selectedScan)}
+        visible={Boolean(selectedProduct)}
         transparent
         animationType="slide"
         onRequestClose={() => {
@@ -506,10 +449,10 @@ export default function HomeScreen() {
             <View className="flex-row items-start justify-between border-b border-border px-6 pb-5 pt-6 dark:border-darkBorder">
               <View className="mr-4 flex-1">
                 <Text className="text-3xl font-extrabold text-navy dark:text-cloud" numberOfLines={2}>
-                  {selectedScan?.productName}
+                  {selectedProduct?.name}
                 </Text>
                 <Text className="mt-1 text-base font-semibold text-muted dark:text-darkMuted">
-                  {selectedScan ? formatDate(selectedScan.scannedAt) : ""}
+                  {selectedProduct?.brand ?? "Shared Scan"}
                 </Text>
               </View>
               <Pressable
@@ -534,7 +477,7 @@ export default function HomeScreen() {
                 <>
                   <View className="items-center justify-center rounded-3xl p-8" style={{ backgroundColor: detailTone.bg }}>
                     <Text className="text-2xl font-extrabold" style={{ color: detailTone.color }}>
-                      {detailAnalysis?.score ?? selectedScan?.score ?? "--"}
+                      {detailAnalysis?.score ?? "--"}
                     </Text>
                     <Text className="mt-4 text-2xl font-extrabold" style={{ color: detailTone.color }}>
                       {detailTone.label}
@@ -618,7 +561,7 @@ export default function HomeScreen() {
                   </View>
 
                   <Pressable
-                    disabled={!detailProduct || saving || detailSaved}
+                    disabled={!selectedProduct || saving || detailSaved}
                     onPress={handleSaveProduct}
                     className="mt-7 h-16 flex-row items-center justify-center gap-3 rounded-3xl bg-maroon disabled:opacity-50"
                   >
@@ -627,7 +570,7 @@ export default function HomeScreen() {
                   </Pressable>
 
                   <Pressable
-                    disabled={!detailProduct || addingRoutine}
+                    disabled={!selectedProduct || addingRoutine}
                     onPress={() => setRoutinePickerOpen(true)}
                     className="mt-4 h-16 flex-row items-center justify-center gap-3 rounded-3xl border-2 border-maroon bg-transparent disabled:opacity-50"
                   >
@@ -730,12 +673,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
   },
-  recentCard: {
+  productCard: {
     shadowColor: "#374375",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   softShadow: {
     shadowColor: "#374375",

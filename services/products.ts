@@ -19,7 +19,10 @@ import {
 import { getSkinProfile } from "./profile";
 import type { Product, AnalysisResult } from "@/types/domain";
 
-const SAVED_KEY = "dermascan:saved-products";
+async function getSavedProductsKey(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user ? `dermascan:${user.id}:saved-products` : "dermascan:guest:saved-products";
+}
 
 function rowToProduct(row: {
   id: string; barcode?: string | null; name: string; brand?: string | null;
@@ -322,6 +325,7 @@ export async function submitCrowdsourcedProduct(
 // ── Saved products ────────────────────────────────────────────
 export async function getSavedProducts(): Promise<Product[]> {
   const { data: { user } } = await supabase.auth.getUser();
+  const key = await getSavedProductsKey();
   if (user) {
     const { data, error } = await supabase.from("saved_products")
       .select("products(*)").eq("user_id", user.id)
@@ -330,11 +334,11 @@ export async function getSavedProducts(): Promise<Product[]> {
       const products = data.flatMap((r: { products: unknown }) =>
         r.products ? [rowToProduct(r.products as Parameters<typeof rowToProduct>[0])] : []
       );
-      await AsyncStorage.setItem(SAVED_KEY, JSON.stringify(products));
+      await AsyncStorage.setItem(key, JSON.stringify(products));
       return products;
     }
   }
-  const cached = await AsyncStorage.getItem(SAVED_KEY);
+  const cached = await AsyncStorage.getItem(key);
   return cached ? JSON.parse(cached) : [];
 }
 
@@ -362,4 +366,39 @@ export async function saveProduct(productId: string): Promise<void> {
     .upsert({ user_id: user.id, product_id: productId }, { onConflict: "user_id,product_id" });
 
   if (error) throw new Error(`[products] save error: ${error.message}`);
+}
+
+// ── Query Discover Products with range-based lazy loading ─────
+export async function queryDiscoverProducts(options: {
+  category?: string;
+  search?: string;
+  limit: number;
+  offset: number;
+}): Promise<Product[]> {
+  let query = supabase
+    .from("products")
+    .select("*")
+    .in("verification_status", ["Pending", "Verified"])
+    .order("created_at", { ascending: false });
+
+  if (options.category && options.category !== "All") {
+    if (options.category === "Others") {
+      query = query.not("category", "in", '("Cleanser","Toner","Serum","Moisturiser","Moisturizer","Sunscreen")');
+    } else if (options.category === "Moisturiser" || options.category === "Moisturizer") {
+      query = query.in("category", ["Moisturiser", "Moisturizer"]);
+    } else {
+      query = query.eq("category", options.category);
+    }
+  }
+
+  if (options.search && options.search.trim() !== "") {
+    query = query.ilike("name", `%${options.search}%`);
+  }
+
+  const { data, error } = await query.range(options.offset, options.offset + options.limit - 1);
+  if (error) {
+    console.warn("[products] queryDiscoverProducts error:", error.message);
+    return [];
+  }
+  return (data ?? []).map(rowToProduct);
 }

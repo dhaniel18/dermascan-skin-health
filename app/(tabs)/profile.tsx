@@ -45,21 +45,6 @@ function scoreColor(score?: number) {
   return "#C0392B";
 }
 
-function makeSampleScans(products: Product[], profile: SkinProfile | null): ScanHistoryItem[] {
-  return products.slice(0, 5).map((product, index) => {
-    const analysis = analyseIngredients(resolveIngredientIds(product.ingredientIds), profile);
-    return {
-      id: `profile-sample-${product.id}`,
-      productId: product.id,
-      productName: product.name,
-      score: analysis.score,
-      warnings: analysis.warnings,
-      scanMethod: "barcode",
-      scannedAt: new Date(Date.now() - (index + 1) * 86_400_000).toISOString(),
-    };
-  });
-}
-
 async function analyseProductScore(product: Product, profile: SkinProfile | null) {
   let ingredients = resolveIngredientIds(product.ingredientIds);
 
@@ -109,12 +94,10 @@ export default function ProfileScreen() {
           warnings: analysis.warnings,
         };
       }));
-      const seen = new Set(updatedHistory.map((scan) => scan.productId).filter(Boolean));
-      const fillers = makeSampleScans(discover, profile).filter((scan) => scan.productId && !seen.has(scan.productId));
 
       setUser(currentUser);
       setSkinProfile(profile);
-      setScanHistory([...updatedHistory, ...fillers].slice(0, 5));
+      setScanHistory(updatedHistory.slice(0, 5));
     } catch (error) {
       console.warn("[profile]", error);
     } finally {

@@ -5,7 +5,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import type { ScanHistoryItem, IngredientAnalysisWarning } from "@/types/domain";
 
-const LOCAL_KEY = "dermascan:scan-history";
+async function getHistoryKey(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user ? `dermascan:${user.id}:scan-history` : "dermascan:guest:scan-history";
+}
 
 // ── Row mapper ───────────────────────────────────────────────
 function rowToScanItem(row: {
@@ -31,6 +34,7 @@ function rowToScanItem(row: {
 // ── Read ─────────────────────────────────────────────────────
 export async function getScanHistory(): Promise<ScanHistoryItem[]> {
   const { data: { user } } = await supabase.auth.getUser();
+  const key = await getHistoryKey();
   if (user) {
     const { data, error } = await supabase
       .from("scan_history")
@@ -41,13 +45,13 @@ export async function getScanHistory(): Promise<ScanHistoryItem[]> {
 
     if (!error && data) {
       const items = data.map(rowToScanItem);
-      await AsyncStorage.setItem(LOCAL_KEY, JSON.stringify(items));
+      await AsyncStorage.setItem(key, JSON.stringify(items));
       return items;
     }
   }
 
   // Offline fallback
-  const cached = await AsyncStorage.getItem(LOCAL_KEY);
+  const cached = await AsyncStorage.getItem(key);
   return cached ? JSON.parse(cached) : [];
 }
 
@@ -95,14 +99,15 @@ export async function recordScan(input: {
   }
 
   // Offline: write to local cache
-  const cached = await AsyncStorage.getItem(LOCAL_KEY);
+  const key = await getHistoryKey();
+  const cached = await AsyncStorage.getItem(key);
   const history: ScanHistoryItem[] = cached ? JSON.parse(cached) : [];
   // Remove duplicate if same product
   const filtered = input.productId
     ? history.filter((h) => h.productId !== input.productId)
     : history;
   const updated = [item, ...filtered].slice(0, 50);
-  await AsyncStorage.setItem(LOCAL_KEY, JSON.stringify(updated));
+  await AsyncStorage.setItem(key, JSON.stringify(updated));
   return item;
 }
 
@@ -112,7 +117,8 @@ export async function clearScanHistory(): Promise<void> {
   if (user) {
     await supabase.from("scan_history").delete().eq("user_id", user.id);
   }
-  await AsyncStorage.removeItem(LOCAL_KEY);
+  const key = await getHistoryKey();
+  await AsyncStorage.removeItem(key);
 }
 
 export const scanTips = [

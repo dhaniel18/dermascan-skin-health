@@ -32,6 +32,7 @@ export default function RootLayout() {
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="skin-setup" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="discover" />
         <Stack.Screen name="+not-found" />
       </Stack>
     </AppThemeProvider>

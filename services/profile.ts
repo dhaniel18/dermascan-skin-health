@@ -7,7 +7,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import type { SkinProfile } from "@/types/domain";
 
-const LOCAL_KEY = "dermascan:skin-profile";
+async function getProfileKey(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user ? `dermascan:${user.id}:skin-profile` : "dermascan:guest:skin-profile";
+}
 
 // ── Helpers ──────────────────────────────────────────────────
 function rowToProfile(row: {
@@ -26,6 +29,7 @@ function rowToProfile(row: {
 export async function getSkinProfile(): Promise<SkinProfile | null> {
   // 1. Try Supabase (authoritative)
   const { data: { user } } = await supabase.auth.getUser();
+  const key = await getProfileKey();
   if (user) {
     const { data, error } = await supabase
       .from("profiles")
@@ -36,20 +40,21 @@ export async function getSkinProfile(): Promise<SkinProfile | null> {
     if (!error && data) {
       const profile = rowToProfile(data);
       // Sync local cache
-      await AsyncStorage.setItem(LOCAL_KEY, JSON.stringify(profile));
+      await AsyncStorage.setItem(key, JSON.stringify(profile));
       return profile;
     }
   }
 
   // 2. Fall back to local cache (offline)
-  const cached = await AsyncStorage.getItem(LOCAL_KEY);
+  const cached = await AsyncStorage.getItem(key);
   return cached ? (JSON.parse(cached) as SkinProfile) : null;
 }
 
 // ── Write ─────────────────────────────────────────────────────
 export async function saveSkinProfile(profile: SkinProfile): Promise<SkinProfile> {
+  const key = await getProfileKey();
   // Always write locally first for instant feedback
-  await AsyncStorage.setItem(LOCAL_KEY, JSON.stringify(profile));
+  await AsyncStorage.setItem(key, JSON.stringify(profile));
 
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {

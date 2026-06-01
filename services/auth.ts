@@ -9,7 +9,7 @@ function mapUser(u: { id: string; email?: string; user_metadata?: { name?: strin
   return { id: u.id, email: u.email ?? "", name: u.user_metadata?.name ?? u.email ?? "User" };
 }
 
-export async function signUp(name: string, email: string, password: string): Promise<User> {
+export async function signUp(name: string, email: string, password: string, consentPublicData: boolean): Promise<User> {
   const cleanName = sanitizeText(name, 80);
   const cleanEmail = email.trim().toLowerCase();
 
@@ -20,7 +20,12 @@ export async function signUp(name: string, email: string, password: string): Pro
   const { data, error } = await supabase.auth.signUp({
     email: cleanEmail,
     password,
-    options: { data: { name: cleanName } },
+    options: {
+      data: {
+        name: cleanName,
+        consent_public_data: consentPublicData,
+      },
+    },
   });
   if (error) throw new Error(error.message);
   if (!data.user) throw new Error("Sign-up failed.");
