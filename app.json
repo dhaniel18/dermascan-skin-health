@@ -28,7 +28,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FDEBD0"
       },
-      "package": "com.dermascan.app",
+      "package": "com.dermascan.dermascanapp",
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
